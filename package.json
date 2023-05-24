@@ -1,8 +1,8 @@
 {
-    "name": "kingraph",
+    "name": "@nicodoggie/kingraph",
     "description": "Plots family trees using JavaScript and Graphviz",
     "version": "0.2.0",
-    "author": "Rico Sta. Cruz <rico@ricostacruz.com> (http://ricostacruz.com); updated by Alexander Willner (https://github.com/AlexanderWillner/kingraph)",
+    "author": "Rico Sta. Cruz <rico@ricostacruz.com> (http://ricostacruz.com); updated by Alexander Willner (https://github.com/AlexanderWillner/kingraph); updated by Nico Suarez (https://github.com/nicodoggie/kingraph);",
     "bin": "bin/kingraph",
     "dependencies": {
         "js-yaml": "3.13.1",
@@ -33,6 +33,5 @@
     "main": "index.js",
     "scripts": {
         "test": "tape lib/**/*.test.js"
-    },
-    "packageManager": "yarn@3.5.1"
+    }
 }
