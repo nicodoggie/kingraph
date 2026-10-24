@@ -6,7 +6,6 @@ const COLORS = [
     '#6897BB',
     '#BBB529',
     '#9876AA',
-    '#EFC090'
+    '#EFC090',
 ];
-
-module.exports = COLORS;
+export default COLORS;

@@ -1,26 +1,51 @@
 {
     "name": "@nicodoggie/kingraph",
     "description": "Plots family trees using JavaScript and Graphviz",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "author": "Rico Sta. Cruz <rico@ricostacruz.com> (http://ricostacruz.com); updated by Alexander Willner (https://github.com/AlexanderWillner/kingraph); updated by Nico Suarez (https://github.com/nicodoggie/kingraph);",
-    "bin": "bin/kingraph",
-    "dependencies": {
-        "@viz-js/viz": "^3.4.0",
-        "js-yaml": "3.13.1",
-        "meow": "3.7.0",
-        "object-assign": "4.1.1",
-        "object-loops": "0.8.0",
-        "read-input": "0.3.1",
-        "strip-indent": "3.0.0",
-        "svg2png": "4.1.1"
+    "type": "module",
+    "engines": {
+        "node": ">=24"
     },
-    "browser": {
-        "lib/to_png.js": "lib/to_png.browser.js"
+    "bin": {
+        "kingraph": "dist/cli.js"
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE",
+        "docs/schema.md"
+    ],
+    "dependencies": {
+        "@resvg/resvg-js": "^2.6.2",
+        "@viz-js/viz": "^3.31.0",
+        "js-yaml": "^5.5.0",
+        "meow": "^14.1.0"
+    },
+    "exports": {
+        ".": {
+            "browser": {
+                "types": "./dist/browser.d.ts",
+                "default": "./dist/browser.js"
+            },
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./browser": {
+            "types": "./dist/browser.d.ts",
+            "import": "./dist/browser.js"
+        },
+        "./package.json": "./package.json"
     },
     "devDependencies": {
-        "istanbul": "^0.4.5",
-        "prettier": "^2.4.1",
-        "tape": "4.13.0"
+        "@eslint/js": "^10.0.1",
+        "@types/node": "^24.0.0",
+        "@vitest/coverage-v8": "^5.0.5",
+        "eslint": "^10.13.0",
+        "prettier": "^3.9.10",
+        "typescript": "~6.0.3",
+        "typescript-eslint": "^8.72.0",
+        "vitest": "^5.0.5"
     },
     "keywords": [
         "ancestry",
@@ -30,8 +55,17 @@
         "pedigree"
     ],
     "license": "MIT",
-    "main": "index.js",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
     "scripts": {
-        "test": "tape lib/**/*.test.js"
+        "build": "tsc",
+        "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.browser.json",
+        "test": "npm run build && vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "npm run build && vitest run --coverage",
+        "lint": "eslint src tests/*.test.ts *.ts *.js",
+        "format": "prettier --write src tests/*.test.ts package.json tsconfig*.json *.ts *.js README.md docs/plans/modernization.md docs/getting_started.md .github/workflows/ci.yml",
+        "format:check": "prettier --check src tests/*.test.ts package.json tsconfig*.json *.ts *.js README.md docs/plans/modernization.md docs/getting_started.md .github/workflows/ci.yml",
+        "prepack": "npm run build"
     }
 }

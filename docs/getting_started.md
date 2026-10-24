@@ -10,7 +10,9 @@ A family tree is a [YAML](http://yaml.org/) file. Start with a `families` collec
 
 ## Generating
 
-kingraph can give you `svg` (default), `png` or `dot` files. However, using `dot` output and converting it via `dot` is recommended.
+kingraph can give you `svg` (default), `png` or `dot` files. Built-in PNG uses
+resvg and does not require a browser. For local `picture` files or PDF output,
+emit DOT and convert it using native Graphviz, which can read those files.
 
 ```sh
 kingraph family.yaml > family.svg

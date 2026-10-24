@@ -1,4 +1,6 @@
 node_modules
+dist/
+*.tgz
 *.dot
 .DS_Store
 *.yaml.png
