@@ -20,7 +20,7 @@ For a published release:
 npm install -g @nicodoggie/kingraph
 ```
 
-For this checkout (including unreleased changes):
+For this checkout:
 
 ```sh
 npm ci
@@ -123,6 +123,115 @@ Family data and Graphviz style/HTML-label values are trusted authoring input,
 not a sanitization boundary. Do not inject untrusted rendered SVG into a page
 without an appropriate sanitization policy.
 
+## Vite plugin
+
+The plugin lives in the same package under `@nicodoggie/kingraph/vite`; the regular
+Node/browser imports and CLI do not load Vite. Vite is an optional peer
+dependency, so non-Vite consumers do not need to install it.
+
+The plugin supports **Vite 8.3.4 or newer within Vite 8**. Install kingraph and
+Vite in your project:
+
+```sh
+npm install -D @nicodoggie/kingraph 'vite@^8.3.4'
+```
+
+Configure `vite.config.ts`:
+
+```ts
+import { defineConfig } from 'vite';
+import kingraph from '@nicodoggie/kingraph/vite';
+
+export default defineConfig({
+    plugins: [kingraph()],
+});
+```
+
+### Import a family tree as an image URL
+
+```ts
+import familyUrl, { width, height } from './family.yaml?kingraph';
+
+const image = new Image();
+image.src = familyUrl;
+image.alt = 'Family tree';
+image.width = width;
+image.height = height;
+document.body.append(image);
+```
+
+Only `.yaml`/`.yml` imports with `?kingraph` opt in. Other YAML files are left
+to your existing loaders. YAML parsing and Graphviz rendering happen in Node,
+not in the browser bundle.
+
+In development the URL is a self-contained SVG data URL. Production application
+builds emit an SVG asset through Vite's native pipeline, including content hashing
+and configured `base` handling. Library builds follow their configured asset
+naming rules. Source edits use Vite's native module invalidation/HMR; no generated
+SVG needs to be checked into your source tree.
+
+The named `width` and `height` exports are the SVG's **viewBox dimensions**, useful
+for aspect ratios and initial layout. They are not physical pixel measurements
+or Astro `ImageMetadata`.
+
+### Import the SVG string
+
+```ts
+import familySvg from './family.yml?kingraph&raw';
+```
+
+The raw variant returns the rendered SVG string instead of a URL and also
+exports `width` and `height`. It does not emit a separate asset. This is useful
+for inline SVG; apply the trusted-input/sanitization guidance above. Links inside
+an SVG are usable when it is inline, not when the diagram is displayed in an
+image element.
+
+### TypeScript import declarations
+
+Add these references to your project's `vite-env.d.ts` (or `env.d.ts`):
+
+```ts
+/// <reference types="vite/client" />
+/// <reference types="@nicodoggie/kingraph/vite/client" />
+```
+
+Use the query order shown above so the opt-in module declarations match.
+
+### Astro and standalone SSR builds
+
+For an Astro project, register the same plugin under `vite.plugins`. URL imports
+consumed only on the server also need SVG assets in the deployed output. For
+standalone Vite SSR builds, enable Vite's `build.ssrEmitAssets` option; frameworks
+may coordinate server/client assets themselves.
+
+```ts
+import { defineConfig } from 'astro/config';
+import kingraph from '@nicodoggie/kingraph/vite';
+
+export default defineConfig({
+    vite: {
+        plugins: [kingraph()],
+        build: { ssrEmitAssets: true },
+    },
+});
+```
+
+An Astro component can use the URL and dimensions directly rather than passing
+the string to `getImage()` as if it were imported SVG metadata:
+
+```astro
+---
+import familyUrl, { width, height } from './family.yaml?kingraph';
+---
+
+<img src={familyUrl} width={width} height={height} alt="Family tree" />
+```
+
+The plugin currently targets SVG output. Local `picture` loading has the same
+WASM limitation as the core renderer; use the native Graphviz workflow for those
+trees. This plugin does not install an Astro integration or migrate an existing
+site's CLI/build scripts automatically.
+
 ## Development
 
 ```sh
@@ -141,8 +250,8 @@ global tools. GitHub Actions runs checks on Node 24 and 26. The lockfile is
 tracked for reproducible development installs. TypeScript stays on the 6.0
 release line while typescript-eslint's supported peer range excludes 7.x.
 
-A Vite plugin for rendering family YAML during builds is intentionally deferred
-to the next pass. Consumers can already call the typed ESM renderer directly.
+Vite integration tests exercise production/SSR output and development source
+updates through Vite's native APIs, without browser automation.
 
 ## Further Examples
 
