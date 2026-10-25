@@ -4,6 +4,7 @@ import slugify from './slugify.js';
 import applyStyle from './apply_style.js';
 import idGenerator from './id_generator.js';
 import COLORS from './defaults/colors.js';
+import { validateFamilyTree } from './v1/schemas.js';
 import type { Family, FamilyTree, Person, StyleProperties } from './types.js';
 
 const LINE2 = '# ' + Array(74).join('-');
@@ -14,6 +15,7 @@ export default function renderGraph(data: FamilyTree): string {
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
         throw new TypeError('Family tree must be an object.');
     }
+    data = validateFamilyTree(data);
     const getId = idGenerator();
     return join(
         [

@@ -15,13 +15,15 @@
         "README.md",
         "LICENSE",
         "docs/schema.md",
+        "docs/images/v1",
         "src/vite-client.d.ts"
     ],
     "dependencies": {
         "@resvg/resvg-js": "^2.6.2",
         "@viz-js/viz": "^3.31.0",
         "js-yaml": "^5.5.0",
-        "meow": "^14.1.0"
+        "meow": "^14.1.0",
+        "zod": "^4.6.7"
     },
     "exports": {
         ".": {
@@ -35,6 +37,18 @@
         "./browser": {
             "types": "./dist/browser.d.ts",
             "import": "./dist/browser.js"
+        },
+        "./v1": {
+            "browser": {
+                "types": "./dist/browser.d.ts",
+                "default": "./dist/browser.js"
+            },
+            "types": "./dist/v1/index.d.ts",
+            "import": "./dist/v1/index.js"
+        },
+        "./v1/schemas": {
+            "types": "./dist/v1/schemas.d.ts",
+            "import": "./dist/v1/schemas.js"
         },
         "./vite": {
             "types": "./dist/vite.d.ts",
@@ -56,8 +70,10 @@
     "devDependencies": {
         "@eslint/js": "^10.0.1",
         "@types/node": "^24.0.0",
+        "@vitest/browser-playwright": "^5.0.5",
         "@vitest/coverage-v8": "^5.0.5",
         "eslint": "^10.13.0",
+        "playwright": "^1.64.1",
         "prettier": "^3.9.10",
         "typescript": "~6.0.3",
         "typescript-eslint": "^8.72.0",
@@ -75,14 +91,17 @@
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "scripts": {
+        "prebuild": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\"",
         "build": "tsc",
         "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.browser.json",
         "test": "npm run build && vitest run",
         "test:watch": "vitest",
         "test:coverage": "npm run build && vitest run --coverage",
-        "lint": "eslint src tests/*.test.ts *.ts *.js",
-        "format": "prettier --write src tests/*.test.ts package.json tsconfig*.json *.ts *.js README.md docs/plans/*.md docs/getting_started.md .github/workflows/ci.yml",
-        "format:check": "prettier --check src tests/*.test.ts package.json tsconfig*.json *.ts *.js README.md docs/plans/*.md docs/getting_started.md .github/workflows/ci.yml",
+        "test:browser": "vitest run --config vitest.browser.config.ts",
+        "test:browser:install": "playwright install chromium --only-shell",
+        "lint": "eslint src tests *.ts *.js",
+        "format": "prettier --write src \"tests/**/*.ts\" package.json tsconfig*.json *.ts *.js README.md docs/plans/*.md docs/schema.md docs/getting_started.md .github/workflows/ci.yml",
+        "format:check": "prettier --check src \"tests/**/*.ts\" package.json tsconfig*.json *.ts *.js README.md docs/plans/*.md docs/schema.md docs/getting_started.md .github/workflows/ci.yml",
         "prepack": "npm run build"
     }
 }

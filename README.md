@@ -89,6 +89,27 @@ years, including unquoted numeric YAML years, are rendered as years rather than
 milliseconds since 1970. Full dates use UTC for consistent year/date labels.
 Family colors restart for each render, making repeated builds deterministic.
 
+### V1 input validation
+
+Unversioned family documents use schema v1. An explicit `schemaVersion: 1` is
+also accepted; other version values are rejected. Both parsed YAML and direct
+render calls validate known fields with Zod, while preserving extra author
+metadata on trees, families and people. Validation does not coerce values or
+add relationship semantics to custom fields.
+
+The package root re-exports the v1 rendering API. Use
+`@nicodoggie/kingraph/v1` for the explicit versioned entry; both select the
+browser implementation in browser-aware bundlers. The existing `/browser`
+entry remains available.
+
+Import `FamilyTreeSchema`, `FamilySchema`, `PersonSchema`,
+`StylePropertiesSchema`, `StylesSchema` and `validateFamilyTree` from
+`@nicodoggie/kingraph/v1/schemas` for direct validation. This schema-only entry
+works in Node and browsers without loading the rendering stack. Public
+TypeScript types derive from these definitions. See the
+[v1 field reference](docs/schema.md) for accepted inputs, defaults, actual
+rendering behavior and legacy limitations.
+
 ## Browser API
 
 Use the explicit browser entry with an ESM-capable bundler. Bundlers that honor
@@ -108,8 +129,8 @@ document.body.append(image);
 Browser PNG conversion requires native image/canvas APIs. It waits for loading
 and conversion, rejects failures, and releases temporary SVG object URLs. PNG
 scale defaults to `devicePixelRatio`; pass a positive finite value to override.
-Browser conversion has unit coverage only in this modernization; real-browser
-rendering and visual fidelity have not been qualified.
+Functional browser tests exercise Chromium SVG rendering and native PNG
+conversion. They are not cross-browser or pixel-perfect visual qualification.
 
 ### Rendering limits and trusted input
 
@@ -240,6 +261,8 @@ npm run build          # ESM JavaScript and declarations in dist/
 npm test               # Build, unit tests and Node/CLI integration tests
 npm run test:watch
 npm run test:coverage  # Vitest V8 coverage; no percentage gate
+npm run test:browser:install # Install Playwright's Chromium headless shell
+npm run test:browser   # Real Chromium SVG/image/canvas tests
 npm run typecheck     # Source/tests plus a DOM-only browser import graph
 npm run lint
 npm run format:check
@@ -247,7 +270,10 @@ npm run format:check
 
 `make test` and `make lint` delegate to local npm scripts; they never install
 global tools. GitHub Actions runs checks on Node 24 and 26. The lockfile is
-tracked for reproducible development installs. TypeScript stays on the 6.0
+tracked for reproducible development installs. A separate CI job runs Chromium
+browser tests on Node 24. On Linux, install browser system dependencies with
+`npm run test:browser:install -- --with-deps` where Playwright supports the host
+distribution. TypeScript stays on the 6.0
 release line while typescript-eslint's supported peer range excludes 7.x.
 
 Vite integration tests exercise production/SSR output and development source
