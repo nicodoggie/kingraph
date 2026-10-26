@@ -89,6 +89,90 @@ years, including unquoted numeric YAML years, are rendered as years rather than
 milliseconds since 1970. Full dates use UTC for consistent year/date labels.
 Family colors restart for each render, making repeated builds deterministic.
 
+### Dates, ages and shared configuration
+
+Rendering accepts optional `dateAdapter`, `ageAdapter` and `asOf` options in
+Node, browsers and the Vite plugin. Adapters and their types are exported from
+the root, `/v1` and `/browser` entries. The document schema is unchanged:
+functions belong in application configuration, not family YAML.
+
+Age display is **opt-in**. The default date formatter keeps conventional year
+labels and UTC/en-US tooltip dates; invalid date strings omit their fragments
+instead of producing `NaN` or `Invalid Date`. Numeric zero is a present epoch
+timestamp under that formatter, not a missing value.
+
+```ts
+import render, { asOf, defaultAgeAdapter } from '@nicodoggie/kingraph';
+
+const config = { ageAdapter: defaultAgeAdapter };
+const svg = await render(family, {
+    ...config,
+    ...asOf('2026-10-26'),
+});
+```
+
+`asOf(value)` returns a fresh options fragment; plain `asOf: value` works too.
+Neither form reads the clock or enables age display by itself. The reference
+is passed unchanged to the age policy, so custom-calendar strings are allowed.
+Compose a different reference for each rendering without changing the base config.
+
+The conventional age adapter calculates completed Gregorian years from UTC
+calendar dates. It needs a full birth date and either an explicit reference or
+a full death date. It uses death as the endpoint when death is on/before the
+reference; otherwise it calculates to the reference. Without a reference, a
+living person's age is omitted. Year-only, unsupported, imprecise or reversed
+dates do not produce an exact age. February 29 birthdays advance on March 1 in
+non-leap years. Output is `Age: N` or `Age at death: N`, shown in the label and
+tooltip.
+
+Custom `DateAdapter` objects implement `formatYear(value, context)` and
+`formatDate(value, context)`. A custom `AgeAdapter` is a function receiving
+`{ id, person, tree, asOf }` and can inspect preserved life-history metadata.
+It returns complete age wording, so ranges or biological/chronological age
+descriptions are possible. All callbacks are synchronous and return plain text
+or `undefined` (empty text also omits the fragment). Unexpected callback errors
+fail rendering with person/operation context rather than silently changing policy.
+
+**A custom date formatter does not change the conventional age arithmetic.**
+For a custom calendar, supply both adapters and share your calendar code between
+them. Quote custom-calendar values in YAML when you need the original string:
+unquoted YAML timestamps may already be `Date` objects when the adapters run.
+See [date and age policies](docs/schema.md#date-and-age-adapters) for the full
+contract and precision rules.
+
+### CLI configuration
+
+The CLI can explicitly load the same options object from trusted JavaScript.
+For example, create `kingraph.config.mjs`:
+
+```js
+import { defaultAgeAdapter } from '@nicodoggie/kingraph';
+
+export default {
+    ageAdapter: defaultAgeAdapter,
+    asOf: '2026-10-26',
+};
+```
+
+```sh
+kingraph family.yaml --config ./kingraph.config.mjs > family.svg
+kingraph family.yaml --config ./kingraph.config.mjs --as-of 2020-01-01 > past.svg
+kingraph family.yaml --age --as-of 2026-10-26 > conventional.svg
+```
+
+`--config` paths resolve from the working directory. Native Node module rules
+apply to `.js` and `.mjs`, and relative imports inside the module resolve from
+that module. The default export must be an options object, not a factory.
+There is no config-file discovery or custom TypeScript transpiler. Loading a
+config **executes trusted local code**; it is not a sandbox or part of YAML parsing.
+
+`--as-of` overrides the configured reference with the supplied string; omission
+preserves it and never selects today automatically. `--age` enables the built-in
+policy only when no custom age adapter is configured. A configured age adapter
+needs no `--age` flag, and `--as-of` alone does not enable ages. For custom policies,
+pass a quoted calendar-specific reference, for example
+`--as-of '14 Frostwane 843'`; the CLI does not interpret it as Gregorian first.
+
 ### V1 input validation
 
 Unversioned family documents use schema v1. An explicit `schemaVersion: 1` is
@@ -167,6 +251,25 @@ export default defineConfig({
     plugins: [kingraph()],
 });
 ```
+
+To share adapter configuration with the CLI or another renderer, import the
+object in your Vite config and compose its reference normally:
+
+```ts
+import { defineConfig } from 'vite';
+import { asOf } from '@nicodoggie/kingraph';
+import kingraph from '@nicodoggie/kingraph/vite';
+import config from './kingraph.config.mjs';
+
+export default defineConfig({
+    plugins: [kingraph({ ...config, ...asOf('2026-10-26') })],
+});
+```
+
+Adapter code runs in the build/dev process, not in generated client modules.
+The SVG represents that reference at transformation time: it does not update
+its ages when a page opens later. Changing the reference requires regeneration;
+there is no clock-driven watcher or mutable `.asOf()` plugin method.
 
 ### Import a family tree as an image URL
 

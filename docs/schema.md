@@ -160,19 +160,20 @@ the ID as its label. All thirteen person fields are optional.
 | `first_name`                    | String                    | Tooltip only. Concatenated directly with `last_name`, without an inserted space. Omission contributes an empty string.                                                             |
 | `last_name`                     | String                    | Tooltip only. Concatenated directly after `first_name`; omission contributes an empty string.                                                                                      |
 | `gender`                        | String                    | A nonempty value activates the rich label. Only case-insensitive `f` and `m` append `♀` and `♂`, respectively. Other strings append no symbol; omission adds none.                 |
-| `born`                          | `Date`, string, or number | A truthy value activates the rich label, adds `*year` to the lifespan line and a `Born` tooltip date. Omission adds neither. See [Dated values](#dated-values).                    |
-| `died`                          | `Date`, string, or number | A truthy value activates the rich label, adds `†year` and a death tooltip date. With both dates, the label is `*year — †year`. Omission adds neither.                              |
-| `created_at`                    | `Date`, string, or number | A truthy value adds `Added MM/DD/YYYY` to the tooltip only. No addition by default.                                                                                                |
+| `born`                          | `Date`, string, or number | The date adapter supplies `*year` for the lifespan and a `Born` tooltip date. Unsupported fragments are omitted. See [Dated values](#dated-values).                                |
+| `died`                          | `Date`, string, or number | The date adapter supplies `†year` and a death tooltip date. With both formatted years, the label is `*year — †year`. Omission adds neither.                                        |
+| `created_at`                    | `Date`, string, or number | The date adapter supplies an `Added` tooltip date only; the default is `MM/DD/YYYY`. No addition by default.                                                                       |
 | <a id="picture"></a>`picture`   | String                    | A nonempty value activates the rich label and adds an HTML-label image row above the name with `scale='true'`. No image by default. See [Picture limitation](#picture-limitation). |
 | <a id="links"></a>`links`       | Array of strings          | No link by default. Only the first entry becomes the person's `href`; later entries are ignored. SVG links are usable inline, not in an image element.                             |
 | <a id="class"></a>`class`       | Array of strings          | Defaults to `[]`. Selects matching stylesheet entries for the explicit person node. Stylesheet order determines precedence.                                                        |
 | `comment`                       | String                    | Tooltip only. A nonempty value is sliced to its first 50 JavaScript string code units and always followed by `...`, even when shorter than 50. No comment by default.              |
 
-A rich label is the HTML table activated by a truthy `name`, `fullname`, `gender`,
-`born`, `died`, or `picture`. `display`, first/last names, `created_at`, links,
-classes, and comments alone do not activate it. Empty strings and numeric `0`
-are falsy and skip the corresponding conditional rendering. The plain label is
-the ID. Custom styles can override generated labels and links.
+A rich label is the HTML table activated by a nonempty `name`, `fullname`,
+`gender`, `picture`, formatted lifespan or adapter-produced age text. `display`,
+first/last names, `created_at`, links, classes, and comments alone do not activate
+it. Numeric date `0` is present and can produce date output; it is not omitted
+as falsy. The plain label is the ID. Custom styles can override generated labels
+and links, including the label containing generated age/date rows.
 
 ```yaml
 people:
@@ -205,12 +206,79 @@ tooltip. Other birth/death values use `new Date(value)`: labels use
 month/day, numeric year, and UTC timezone. Non-four-digit numbers retain
 JavaScript's milliseconds-since-epoch behavior; other strings retain JavaScript
 date parsing behavior. Accepted strings are not a guarantee of a meaningful date;
-unparseable strings can produce `NaN` or `Invalid Date` in output.
+the default date adapter omits unparseable/empty values instead of emitting
+`NaN` or `Invalid Date`. This omission and rendering numeric zero as a present
+value are intentional corrections to the earlier truthiness-based formatter.
 
 `created_at` always uses the full tooltip date conversion, with no four-digit
 year shortcut. Use an unambiguous date string or `Date` for a calendar date.
 Numbers must be finite, and `Date` objects must represent valid dates. Strings
 remain permissive; validation does not impose a date-string format.
+
+### Date and age adapters
+
+Adapters are runtime configuration, not extra v1 document fields. `GraphRenderOptions`
+contains optional `dateAdapter`, `ageAdapter` and `asOf`. The same object works
+with `renderDot`, Node/browser `render`, the Vite plugin and the CLI's explicit
+JavaScript config default export. `asOf(value)` returns an options fragment for
+ordinary object-spread composition, with no global state or implicit clock.
+The helper and adapter types/defaults are available from the root, `/v1` and
+`/browser` entries; Node-specific config loading is not part of those imports.
+
+`DateValue` is the existing `Date | string | number` union. Both DateAdapter
+methods return `string | undefined`:
+
+- `formatYear(value, context)` supplies the value after `*` or `†` in a label.
+- `formatDate(value, context)` supplies a Born/Died/Added tooltip date.
+
+The context contains readonly `id`, `person`, `tree` and the `field` name
+(`born`, `died` or `created_at`). Values reach the adapter without date coercion
+by Kingraph. YAML timestamp parsing has already happened, so quote values when
+your calendar requires the original string. Unknown person/tree metadata remains
+available. `created_at` uses only formatDate. Undefined or empty output omits
+that fragment and its punctuation; there is no fallback to another calendar.
+
+An AgeAdapter receives `{ id, person, tree, asOf }` and returns complete age text
+or undefined/empty text. The renderer calls it once per explicit person record
+and reuses its result in a small label row after the lifespan and a tooltip line.
+It can produce age text without born/died and interpret custom lifecycle metadata.
+There are no callbacks for implicit Graphviz-only person references absent from
+`people`, and metadata named `age` or `lifeHistory` has no automatic semantics.
+
+The exported defaultAgeAdapter uses conventional Gregorian UTC dates, independently
+of dateAdapter. Choosing a custom date formatter does **not** change that arithmetic.
+Custom-calendar applications supply both policies and may share their own calendar
+implementation between them. No adapters mutate the document, and readonly
+callback types are not a runtime sandbox or deep freeze.
+
+Default age policy:
+
+- No configured ageAdapter means no age display. Neither asOf nor its helper
+  enables age output alone.
+- Exact age requires day precision: a valid Date, a non-four-digit numeric epoch
+  timestamp, a valid ISO date, or an ISO timestamp with an explicit UTC/offset
+  designator. Four-digit numeric/string years do not imply January 1. Unsupported
+  strings and impossible ISO calendar dates do not produce an exact age.
+- A living person needs explicit asOf; there is no implicit today. Without asOf,
+  known birth/death dates can produce age at death.
+- With asOf, stop at death if death is on/before the reference; otherwise use the
+  reference. A known but imprecise death prevents an exact age rather than silently
+  treating the person as living. Missing/imprecise birth or a reference before
+  birth also produces no age.
+- Count completed years, with a February 29 birthday advancing on March 1 in a
+  non-leap year. Age zero is meaningful. Text is `Age: N` or `Age at death: N`.
+
+Adapters must be synchronous. Non-string results (other than undefined), including
+Promises, fail rendering. Callback errors retain their cause and identify the
+person/operation. Returned text is encoded for HTML labels and DOT tooltips; it
+is not a raw-markup hook or a sanitizer for other trusted authoring fields.
+
+See [shared configuration and CLI usage](../README.md#dates-ages-and-shared-configuration)
+for examples. The CLI loads only an explicitly supplied trusted local config
+module; it never discovers executable configuration in YAML. `--as-of` overrides
+config.asOf unchanged, and `--age` selects the default policy only when no custom
+policy is configured. Vite imports configuration through its normal config module
+and produces an SVG snapshot at transformation time, not a live age display.
 
 ### Picture limitation
 

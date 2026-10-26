@@ -4,11 +4,32 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { build, createServer } from 'vite';
 import type { ViteDevServer } from 'vite';
+import { asOf, type GraphRenderOptions } from '../src/v1/index.js';
 import kingraph from '../src/vite.js';
 
 let root: string;
 let server: ViteDevServer | undefined;
 const family = 'families:\n  - parents: [Marge, Homer]\n    children: [Lisa]\n';
+const policyFamily = `${family}people:\n  Lisa:\n    born: '3 Frostwane 812'\n`;
+const config: GraphRenderOptions = {
+    dateAdapter: {
+        formatYear: function customCalendarYear() {
+            return 'Era 812';
+        },
+        formatDate: (value) => `Calendar date: ${value}`,
+    },
+    ageAdapter: ({ asOf }) => `Chronicle at ${asOf}`,
+    asOf: 'original reference',
+};
+const policyOptions = { ...config, ...asOf('14 Frostwane 843') };
+
+function expectPolicySvg(svg: unknown) {
+    expect(String(svg)).toContain('<svg');
+    expect(String(svg)).toContain('Era 812');
+    expect(String(svg)).toContain('Calendar date: 3 Frostwane 812');
+    expect(String(svg)).toContain('Chronicle at 14 Frostwane 843');
+    expect(String(svg)).not.toContain('original reference');
+}
 
 beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), 'kingraph-vite-'));
@@ -34,7 +55,7 @@ async function importCode(code: string): Promise<Record<string, unknown>> {
     );
 }
 
-async function bundle(ssr = false) {
+async function bundle(ssr = false, options?: GraphRenderOptions) {
     await writeFile(
         join(root, 'entry.js'),
         `
@@ -48,7 +69,7 @@ async function bundle(ssr = false) {
             root,
             base: '/book/',
             logLevel: 'silent',
-            plugins: [kingraph()],
+            plugins: [kingraph(options)],
             build: {
                 write: false,
                 minify: false,
@@ -66,6 +87,11 @@ async function bundle(ssr = false) {
 }
 
 describe('kingraph Vite integration', () => {
+    it.each([[null], [[]], [42]])('rejects malformed config %j', (options) => {
+        // @ts-expect-error exercise untyped configuration callers
+        expect(() => kingraph(options)).toThrow(/options must be an object/i);
+    });
+
     it.each([false, true])(
         'emits a hashed SVG URL, raw SVG and dimensions (SSR=%s)',
         async (ssr) => {
@@ -91,6 +117,31 @@ describe('kingraph Vite integration', () => {
             ).toBe(false);
         },
     );
+
+    it('renders shared date/age config with a reference override only on the Node side', async () => {
+        await writeFile(join(root, 'family.yaml'), policyFamily);
+        // JavaScript callers can supply extra fields; the plugin still owns SVG output.
+        const options = { ...policyOptions, format: 'dot' };
+        const result = await bundle(false, options);
+        const asset = result.find(
+            (item) => item.type === 'asset' && item.fileName.endsWith('.svg'),
+        );
+        const chunk = result.find((item) => item.type === 'chunk');
+        if (!chunk || !asset || asset.type !== 'asset')
+            throw new Error('Expected a JS chunk and SVG asset.');
+        const module = await importCode(chunk.code);
+        expect(module.url).toBe(`/book/${asset.fileName}`);
+        expectPolicySvg(module.svg);
+        expectPolicySvg(asset.source);
+        expect(String(asset.source)).toBe(module.svg);
+        expect(
+            Object.keys(chunk.modules).some((id) =>
+                /@viz-js|\/(?:adapters|render_graph|render)\.[jt]s/.test(id),
+            ),
+        ).toBe(false);
+        expect(chunk.code).not.toContain('customCalendarYear');
+        expect(config.asOf).toBe('original reference');
+    });
 
     it('leaves ordinary YAML imports to other plugins', async () => {
         await writeFile(join(root, 'ordinary.yml'), 'ordinary: yaml');
@@ -134,6 +185,7 @@ describe('kingraph Vite integration', () => {
     );
 
     it('uses the real dev server to regenerate both URL and raw modules after a YAML edit', async () => {
+        await writeFile(join(root, 'family.yaml'), policyFamily);
         let changed: (() => void) | undefined;
         server = await createServer({
             configFile: false,
@@ -141,7 +193,7 @@ describe('kingraph Vite integration', () => {
             base: '/book/',
             logLevel: 'silent',
             plugins: [
-                kingraph(),
+                kingraph(policyOptions),
                 {
                     name: 'observe-native-update',
                     handleHotUpdate({ file }) {
@@ -159,6 +211,11 @@ describe('kingraph Vite integration', () => {
         expect(await response.text()).toContain('data:image/svg+xml;base64,');
         const before = await server.ssrLoadModule('/family.yaml?kingraph');
         const raw = await server.ssrLoadModule('/family.yaml?kingraph&raw');
+        expectPolicySvg(raw.default);
+        const transformed = await server.transformRequest(
+            '/family.yaml?kingraph&raw',
+        );
+        expectPolicySvg((await importCode(transformed?.code ?? '')).default);
         expect(
             Buffer.from(before.default.split(',')[1], 'base64').toString(),
         ).toBe(raw.default);
@@ -175,7 +232,7 @@ describe('kingraph Vite integration', () => {
         });
         await writeFile(
             join(root, 'family.yaml'),
-            family.replace('Lisa', 'Maggie'),
+            policyFamily.replaceAll('Lisa', 'Maggie'),
         );
         await updated;
         const after = await server.ssrLoadModule('/family.yaml?kingraph');
@@ -185,5 +242,6 @@ describe('kingraph Vite integration', () => {
         expect(after.default).not.toBe(before.default);
         expect(afterRaw.default).toContain('Maggie');
         expect(afterRaw.default).not.toContain('>Lisa<');
+        expectPolicySvg(afterRaw.default);
     }, 20_000);
 });

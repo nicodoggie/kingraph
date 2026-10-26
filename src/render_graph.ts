@@ -1,3 +1,13 @@
+import {
+    adapterText,
+    defaultDateAdapter,
+    validateGraphRenderOptions,
+} from './adapters.js';
+import type {
+    DateContext,
+    GraphRenderOptions,
+    PersonContext,
+} from './adapters.js';
 import join from './join.js';
 import type { Fragment } from './join.js';
 import slugify from './slugify.js';
@@ -11,7 +21,11 @@ const LINE2 = '# ' + Array(74).join('-');
 type Path = (string | number)[];
 
 /** Render browser-safe DOT, with family colors owned by this render. */
-export default function renderGraph(data: FamilyTree): string {
+export default function renderGraph(
+    data: FamilyTree,
+    options: GraphRenderOptions = {},
+): string {
+    validateGraphRenderOptions(options);
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
         throw new TypeError('Family tree must be an object.');
     }
@@ -36,7 +50,7 @@ export default function renderGraph(data: FamilyTree): string {
                         renderFamily(family || {}, [id]),
                     ),
                     Object.entries(data.people || {}).map(([id, person]) =>
-                        renderPerson(data, person || {}, id),
+                        renderPerson(data, person || {}, id, options),
                     ),
                 ],
             },
@@ -136,14 +150,44 @@ export default function renderGraph(data: FamilyTree): string {
     }
 }
 
-function renderPerson(data: FamilyTree, person: Person, id: string): Fragment {
+function renderPerson(
+    data: FamilyTree,
+    person: Person,
+    id: string,
+    options: GraphRenderOptions,
+): Fragment {
+    const context: PersonContext = { id, person, tree: data };
+    const adapter = options.dateAdapter ?? defaultDateAdapter;
+    const date = (
+        field: DateContext['field'],
+        operation: 'formatYear' | 'formatDate',
+    ) => {
+        const value = person[field];
+        if (value === undefined) return undefined;
+        const dateContext = { ...context, field };
+        return adapterText(`dateAdapter.${operation} (${field})`, context, () =>
+            adapter[operation](value, dateContext),
+        );
+    };
+    const bornYear = date('born', 'formatYear');
+    const diedYear = date('died', 'formatYear');
+    const bornDate = date('born', 'formatDate');
+    const diedDate = date('died', 'formatDate');
+    const addedDate = date('created_at', 'formatDate');
+    const age = options.ageAdapter
+        ? adapterText('ageAdapter', context, () =>
+              options.ageAdapter!({ ...context, asOf: options.asOf }),
+          )
+        : undefined;
+
     let label: string;
     if (
         person.name ||
         person.fullname ||
         person.gender ||
-        person.born ||
-        person.died ||
+        bornYear ||
+        diedYear ||
+        age ||
         person.picture
     ) {
         let gender = '';
@@ -163,21 +207,25 @@ function renderPerson(data: FamilyTree, person: Person, id: string): Fragment {
                 '<tr><td align="center"><font point-size="10" color="#aaaaaa">' +
                 `${person.fullname}</font></td></tr>`;
         }
-        if (person.born || person.died) {
-            const born = person.born ? `*${dateYear(person.born)}` : '';
-            const died = person.died ? `†${dateYear(person.died)}` : '';
+        if (bornYear || diedYear) {
+            const born = bornYear ? `*${htmlText(bornYear)}` : '';
+            const died = diedYear ? `†${htmlText(diedYear)}` : '';
             const lifespan = born && died ? `${born} — ${died}` : born || died;
             label +=
                 '<tr><td align="center"><font point-size="10" color="#aaaaaa">' +
                 `${lifespan}</font></td></tr>`;
         }
+        if (age)
+            label +=
+                '<tr><td align="center"><font point-size="10" color="#aaaaaa">' +
+                `${htmlText(age)}</font></td></tr>`;
         label += '</table>>';
     } else {
         label = id;
     }
     return [
         `"${id}" [`,
-        `tooltip="${renderPersonTooltip(person)}"`,
+        `tooltip="${renderPersonTooltip(person, bornDate, diedDate, addedDate, age)}"`,
         {
             indent: [
                 applyStyle(data, person.class || [], {
@@ -189,38 +237,48 @@ function renderPerson(data: FamilyTree, person: Person, id: string): Fragment {
     ];
 }
 
-function renderPersonTooltip(person: Person): string {
-    const date = (value: Date | string | number): string =>
-        new Date(value).toLocaleDateString('en-US', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            timeZone: 'UTC',
-        });
+function renderPersonTooltip(
+    person: Person,
+    born?: string,
+    died?: string,
+    added?: string,
+    age?: string,
+): string {
     let text = '';
     if (person.first_name || person.last_name) {
         text += (person.first_name || '') + (person.last_name || '') + '\n';
     }
-    if (person.created_at) text += `Added ${date(person.created_at)}\n`;
-    const lifeDate = (value: Date | string | number): string =>
-        isYear(value) ? String(value) : date(value);
-    if (person.born) text += `Born ${lifeDate(person.born)} `;
-    if (person.born && person.died) text += ` -- died ${lifeDate(person.died)}`;
-    if (!person.born && person.died) text += ` Died ${lifeDate(person.died)}`;
+    if (added) text += `Added ${dotText(added)}\n`;
+    if (born) text += `Born ${dotText(born)} `;
+    if (born && died) text += ` -- died ${dotText(died)}`;
+    if (!born && died) text += ` Died ${dotText(died)}`;
     text += '\n';
+    if (age) text += dotText(age) + '\n';
     if (person.comment) text += person.comment.slice(0, 50) + '...';
     return text + '\n';
 }
 
-function isYear(value: Date | string | number): boolean {
+function htmlText(value: string): string {
     return (
-        (typeof value === 'number' || typeof value === 'string') &&
-        /^\d{4}$/.test(String(value))
+        value
+            // HTML labels still undergo Graphviz escString substitutions.
+            .replace(/\\/g, '\\\\')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/\r\n|\r|\n/g, '<br/>')
     );
 }
-
-function dateYear(value: Date | string | number): string | number {
-    return isYear(value) ? String(value) : new Date(value).getUTCFullYear();
+function dotText(value: string): string {
+    return (
+        value
+            // Preserve literals through both DOT parsing and escString expansion.
+            .replace(/\\/g, '\\\\\\\\')
+            .replace(/"/g, '\\"')
+            .replace(/\r\n|\r|\n/g, '\\n')
+    );
 }
 
 function summarizeFamily(family: Family): string {

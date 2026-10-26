@@ -1,11 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import type { Plugin } from 'vite';
+import { validateGraphRenderOptions } from './adapters.js';
+import type { GraphRenderOptions } from './adapters.js';
 import { render } from './render.js';
 import { parseFamilyYaml } from './yaml.js';
 
 /** Render opt-in family YAML imports on Vite's Node side, never in client code. */
-export function kingraph(): Plugin {
+export function kingraph(options: GraphRenderOptions = {}): Plugin {
+    validateGraphRenderOptions(options);
     let building = false;
     return {
         name: 'kingraph',
@@ -22,7 +25,10 @@ export function kingraph(): Plugin {
             this.addWatchFile(filename);
             try {
                 const source = await readFile(filename, 'utf8');
-                const svg = await render(parseFamilyYaml(source, filename));
+                const svg = await render(parseFamilyYaml(source, filename), {
+                    ...options,
+                    format: 'svg',
+                });
                 // Graphviz always emits a viewBox. Its dimensions preserve the
                 // diagram's aspect ratio without pretending to be CSS pixels.
                 const viewBox =

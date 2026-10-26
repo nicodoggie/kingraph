@@ -1,19 +1,20 @@
+import type { GraphRenderOptions } from './adapters.js';
 import renderDot from './render_graph.js';
 import { renderSvg } from './svg.js';
 import type { FamilyTree } from './types.js';
 
 export type RenderFormat = 'dot' | 'svg' | 'png';
-export interface RenderOptions {
+export interface RenderOptions extends GraphRenderOptions {
     format?: RenderFormat;
 }
 
 export function render(
     data: FamilyTree,
-    options: { format: 'png' },
+    options: RenderOptions & { format: 'png' },
 ): Promise<Buffer>;
 export function render(
     data: FamilyTree,
-    options?: { format?: 'svg' | 'dot' },
+    options?: RenderOptions & { format?: 'svg' | 'dot' },
 ): Promise<string>;
 export function render(
     data: FamilyTree,
@@ -32,7 +33,7 @@ export async function render(
             `Unsupported render format: ${String(format)}. Expected dot, svg, or png.`,
         );
     }
-    const dot = renderDot(data);
+    const dot = renderDot(data, options);
     if (format === 'dot') return dot;
     const svg = await renderSvg(dot);
     if (format === 'svg') return svg;

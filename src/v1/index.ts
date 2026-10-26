@@ -10,3 +10,14 @@ export type {
     StyleProperties,
     Stylesheet,
 } from '../types.js';
+
+export { asOf, defaultDateAdapter, defaultAgeAdapter } from '../adapters.js';
+export type {
+    DateValue,
+    PersonContext,
+    DateContext,
+    DateAdapter,
+    AgeContext,
+    AgeAdapter,
+    GraphRenderOptions,
+} from '../adapters.js';

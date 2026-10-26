@@ -1,10 +1,11 @@
+import type { GraphRenderOptions } from './adapters.js';
 import renderDot from './render_graph.js';
 import { renderSvg } from './svg.js';
 import { svgToPng, svgToPngImage } from './browser_png.js';
 import type { FamilyTree } from './types.js';
 
 export type BrowserRenderFormat = 'dot' | 'svg' | 'png' | 'png-image';
-export interface BrowserRenderOptions {
+export interface BrowserRenderOptions extends GraphRenderOptions {
     format?: BrowserRenderFormat;
     /** PNG pixel scale. Defaults to the browser devicePixelRatio. */
     scale?: number;
@@ -39,7 +40,7 @@ export async function render(
             `Unsupported browser render format: ${String(format)}.`,
         );
     }
-    const dot = renderDot(data);
+    const dot = renderDot(data, options);
     if (format === 'dot') return dot;
     const svg = await renderSvg(dot);
     if (format === 'svg') return svg;
@@ -57,3 +58,14 @@ export type {
     StyleProperties,
     Stylesheet,
 } from './types.js';
+
+export { asOf, defaultDateAdapter, defaultAgeAdapter } from './adapters.js';
+export type {
+    DateValue,
+    PersonContext,
+    DateContext,
+    DateAdapter,
+    AgeContext,
+    AgeAdapter,
+    GraphRenderOptions,
+} from './adapters.js';

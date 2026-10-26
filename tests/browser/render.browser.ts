@@ -12,6 +12,7 @@ families:
 people:
   avery:
     name: Avery Example
+    born: Frost
     links: [https://example.org/avery]
   rowan:
     name: Rowan Example
@@ -55,7 +56,14 @@ describe('native browser rendering', () => {
         const host = document.createElement('div');
         document.body.append(host);
         try {
-            host.innerHTML = await render(family(), { format: 'svg' });
+            host.innerHTML = await render(family(), {
+                format: 'svg',
+                dateAdapter: {
+                    formatYear: () => '843 Frost',
+                    formatDate: () => 'Frostwane',
+                },
+                ageAdapter: () => 'Three lives',
+            });
             const svg = host.querySelector('svg');
             expect(svg).toBeInstanceOf(SVGSVGElement);
             expect(svg!.getBoundingClientRect().width).toBeGreaterThan(0);
@@ -68,6 +76,8 @@ describe('native browser rendering', () => {
                     'Avery Example',
                     'Rowan Example',
                     'Sage Example',
+                    '*843 Frost',
+                    'Three lives',
                 ]),
             );
             const link = host.querySelector<SVGAElement>('svg a');
