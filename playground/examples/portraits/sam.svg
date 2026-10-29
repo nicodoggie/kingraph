@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+  <title>Original illustrated portrait of Sam</title>
+  <rect width="96" height="96" rx="16" fill="#f4e4fa"/>
+  <path d="M12 96V83Q15 66 39 65H57Q81 66 84 83V96Z" fill="#8044a3"/>
+  <path d="M40 57H56V72Q48 80 40 72Z" fill="#edbb8e"/>
+  <ellipse cx="48" cy="42" rx="23" ry="27" fill="#edbb8e"/>
+  <path d="M23 47Q15 14 48 12Q80 14 73 51L66 35Q48 26 29 37L30 54Z" fill="#59372d"/>
+  <g fill="#252534"><circle cx="39" cy="44" r="2"/><circle cx="57" cy="44" r="2"/></g>
+  <path d="M41 55Q48 61 55 55" fill="none" stroke="#673d38" stroke-width="2" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,14 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "noEmit": true,
+        "rootDir": ".",
+        "types": ["node", "vite/client"],
+        "paths": {
+            "@nicodoggie/kingraph/browser": ["./src/browser.ts"],
+            "@nicodoggie/kingraph/viewer": ["./src/viewer.ts"]
+        }
+    },
+    "include": ["playground/**/*.ts", "vite.config.ts"],
+    "exclude": ["playground/dist"]
+}

@@ -1,0 +1,20 @@
+schemaVersion: 1
+families:
+    - house: Harbor archive
+      links: ['#example-house']
+      parents: [alex, sam]
+      children: [kit]
+people:
+    alex:
+        name: Alex
+        fullname: Alexandra Harbor
+        first_name: Alexandra
+        last_name: ' Harbor'
+        born: '1978-04-09'
+        created_at: '2026-10-01'
+        comment: Keeps the harbor archive and its family records.
+        links: ['#example-person']
+    sam:
+        name: Sam
+    kit:
+        name: Kit

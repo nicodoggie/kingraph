@@ -1,15 +1,32 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { Resvg } from '@resvg/resvg-js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { build, createServer } from 'vite';
 import type { ViteDevServer } from 'vite';
-import { asOf, type GraphRenderOptions } from '../src/v1/index.js';
+import { asOf } from '../src/v1/index.js';
+import type { GraphRenderOptions } from '../src/adapters.js';
 import kingraph from '../src/vite.js';
 
 let root: string;
 let server: ViteDevServer | undefined;
 const family = 'families:\n  - parents: [Marge, Homer]\n    children: [Lisa]\n';
+const pictureFamily = `schemaVersion: 2
+pictures:
+  portrait: {path: './portrait.png'}
+  unused: {path: './missing.png'}
+people:
+  Lisa: {picture: portrait}
+${family}`;
+function portrait(width = 24, height = 12) {
+    return new Resvg(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="red"/></svg>`,
+    )
+        .render()
+        .asPng();
+}
 const policyFamily = `${family}people:\n  Lisa:\n    born: '3 Frostwane 812'\n`;
 const config: GraphRenderOptions = {
     dateAdapter: {
@@ -56,11 +73,12 @@ async function importCode(code: string): Promise<Record<string, unknown>> {
 }
 
 async function bundle(ssr = false, options?: GraphRenderOptions) {
+    await mkdir(join(root, 'pages'), { recursive: true });
     await writeFile(
-        join(root, 'entry.js'),
+        join(root, 'pages', 'entry.js'),
         `
-        export { default as url, width, height } from './family.yaml?kingraph';
-        export { default as svg } from './family.yaml?kingraph&raw';
+        export { default as url, width, height } from '../family.yaml?kingraph';
+        export { default as svg } from '../family.yaml?kingraph&raw';
     `,
     );
     return outputs(
@@ -74,10 +92,12 @@ async function bundle(ssr = false, options?: GraphRenderOptions) {
                 write: false,
                 minify: false,
                 ...(ssr
-                    ? { ssr: join(root, 'entry.js'), ssrEmitAssets: true }
+                    ? {
+                          ssr: join(root, 'pages', 'entry.js'),
+                      }
                     : {
                           rolldownOptions: {
-                              input: join(root, 'entry.js'),
+                              input: join(root, 'pages', 'entry.js'),
                               preserveEntrySignatures: 'strict',
                           },
                       }),
@@ -92,9 +112,26 @@ describe('kingraph Vite integration', () => {
         expect(() => kingraph(options)).toThrow(/options must be an object/i);
     });
 
-    it.each([false, true])(
-        'emits a hashed SVG URL, raw SVG and dimensions (SSR=%s)',
-        async (ssr) => {
+    it.each([
+        [false, false],
+        [true, false],
+        [false, true],
+        [true, true],
+    ])(
+        'emits a hashed SVG URL, raw SVG and dimensions (SSR=%s, v2=%s)',
+        async (ssr, v2) => {
+            if (v2) {
+                // Cross the 1/10 placeholder boundary in both native build modes.
+                const ids = Array.from(
+                    { length: 11 },
+                    (_, i) => `portrait${i}`,
+                );
+                await writeFile(
+                    join(root, 'family.yaml'),
+                    `schemaVersion: 2\npictures:\n${ids.map((id) => `  ${id}: {path: './portrait.png'}\n`).join('')}  unused: {path: './missing.png'}\npeople:\n${ids.map((id) => `  ${id}: {picture: ${id}}\n`).join('')}${family}`,
+                );
+                await writeFile(join(root, 'portrait.png'), portrait());
+            }
             const result = await bundle(ssr);
             const assets = result.filter(
                 (item) =>
@@ -109,7 +146,32 @@ describe('kingraph Vite integration', () => {
             const module = await importCode(chunk.code);
             expect(module.url).toBe(`/book/${asset.fileName}`);
             expect(String(module.svg)).toContain('<svg');
-            expect(String(asset.source)).toBe(module.svg);
+            if (v2) {
+                const image = result.find(
+                    (item) =>
+                        item.type === 'asset' && item.fileName.endsWith('.png'),
+                );
+                if (!image) throw new Error('Expected a native image asset.');
+                expect(String(module.svg)).toContain(`/book/${image.fileName}`);
+                expect(
+                    [
+                        ...String(module.svg).matchAll(
+                            /<image\b[^>]*\b(?:xlink:)?href="([^"]+)"/g,
+                        ),
+                    ].map((match) => match[1]),
+                ).toEqual(
+                    Array.from({ length: 11 }, () => `/book/${image.fileName}`),
+                );
+                expect(String(module.svg)).not.toMatch(
+                    /data:image|file:|kingraph.invalid/,
+                );
+                expect(String(asset.source)).toContain(
+                    'data:image/png;base64,',
+                );
+                expect(chunk.code).not.toContain(root);
+            } else {
+                expect(String(asset.source)).toBe(module.svg);
+            }
             expect(module.width).toBeGreaterThan(0);
             expect(module.height).toBeGreaterThan(0);
             expect(
@@ -117,6 +179,62 @@ describe('kingraph Vite integration', () => {
             ).toBe(false);
         },
     );
+
+    it('honors explicit embed and loader policies without serializing callbacks', async () => {
+        await writeFile(join(root, 'family.yaml'), pictureFamily);
+        await writeFile(join(root, 'portrait.png'), portrait());
+        const embedded = await bundle(false, { pictureMode: 'embed' });
+        const embeddedChunk = embedded.find((item) => item.type === 'chunk');
+        if (!embeddedChunk) throw new Error('Expected a JS chunk.');
+        expect(String((await importCode(embeddedChunk.code)).svg)).toContain(
+            'data:image/png;base64,',
+        );
+        expect(embedded.some((item) => item.fileName.endsWith('.png'))).toBe(
+            false,
+        );
+
+        const linked = await bundle(false, { pictureMode: 'link' });
+        const linkedChunk = linked.find((item) => item.type === 'chunk');
+        const image = linked.find(
+            (item) => item.type === 'asset' && item.fileName.endsWith('.png'),
+        );
+        if (!linkedChunk || !image)
+            throw new Error('Expected a JS chunk and native image asset.');
+        const linkedModule = await importCode(linkedChunk.code);
+        expect(String(linkedModule.svg)).toContain(`/book/${image.fileName}`);
+        expect(decodeURIComponent(String(linkedModule.url).split(',')[1])).toBe(
+            linkedModule.svg,
+        );
+
+        // A custom access policy may resolve a path without reading that file.
+        await writeFile(
+            join(root, 'family.yaml'),
+            pictureFamily.replace('./portrait.png', './unavailable.png'),
+        );
+        const seen: string[] = [];
+        const overridden = await bundle(true, {
+            pictureMode: 'link',
+            pictureLoader: function customPictureLoader(source, context) {
+                expect(source).toEqual({ path: './unavailable.png' });
+                expect(context.documentUrl).toBe(
+                    pathToFileURL(join(root, 'family.yaml')).href,
+                );
+                seen.push(context.mode);
+                return {
+                    href: 'https://images.example/portrait.png',
+                    width: 24,
+                    height: 12,
+                };
+            },
+        });
+        const chunk = overridden.find((item) => item.type === 'chunk');
+        if (!chunk) throw new Error('Expected a JS chunk.');
+        expect(seen).toEqual(['link', 'link']);
+        expect(String((await importCode(chunk.code)).svg)).toContain(
+            'https://images.example/portrait.png',
+        );
+        expect(chunk.code).not.toContain('customPictureLoader');
+    });
 
     it('renders shared date/age config with a reference override only on the Node side', async () => {
         await writeFile(join(root, 'family.yaml'), policyFamily);
@@ -184,64 +302,113 @@ describe('kingraph Vite integration', () => {
         },
     );
 
-    it('uses the real dev server to regenerate both URL and raw modules after a YAML edit', async () => {
-        await writeFile(join(root, 'family.yaml'), policyFamily);
-        let changed: (() => void) | undefined;
-        server = await createServer({
-            configFile: false,
-            root,
-            base: '/book/',
-            logLevel: 'silent',
-            plugins: [
-                kingraph(policyOptions),
-                {
-                    name: 'observe-native-update',
-                    handleHotUpdate({ file }) {
-                        if (file === join(root, 'family.yaml')) changed?.();
-                    },
-                },
-            ],
-            server: { host: '127.0.0.1', port: 0 },
-        });
-        await server.listen();
-        const url = server.resolvedUrls?.local[0];
-        if (!url) throw new Error('Expected a listening Vite server.');
-        const response = await fetch(`${url}family.yaml?kingraph&import`);
-        expect(response.ok).toBe(true);
-        expect(await response.text()).toContain('data:image/svg+xml;base64,');
-        const before = await server.ssrLoadModule('/family.yaml?kingraph');
-        const raw = await server.ssrLoadModule('/family.yaml?kingraph&raw');
-        expectPolicySvg(raw.default);
-        const transformed = await server.transformRequest(
-            '/family.yaml?kingraph&raw',
-        );
-        expectPolicySvg((await importCode(transformed?.code ?? '')).default);
-        expect(
-            Buffer.from(before.default.split(',')[1], 'base64').toString(),
-        ).toBe(raw.default);
-        const updated = new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(
-                () =>
-                    reject(new Error('Vite did not observe the YAML change.')),
-                10_000,
+    it.each([false, true])(
+        'regenerates URL/raw modules after source edits (v2=%s)',
+        async (v2) => {
+            await writeFile(
+                join(root, 'family.yaml'),
+                v2 ? pictureFamily : policyFamily,
             );
-            changed = () => {
-                clearTimeout(timeout);
-                resolve();
-            };
-        });
-        await writeFile(
-            join(root, 'family.yaml'),
-            policyFamily.replaceAll('Lisa', 'Maggie'),
-        );
-        await updated;
-        const after = await server.ssrLoadModule('/family.yaml?kingraph');
-        const afterRaw = await server.ssrLoadModule(
-            '/family.yaml?kingraph&raw',
-        );
-        expect(after.default).not.toBe(before.default);
-        expect(afterRaw.default).toContain('Maggie');
-        expect(afterRaw.default).not.toContain('>Lisa<');
-        expectPolicySvg(afterRaw.default);
-    }, 20_000);
+            if (v2) await writeFile(join(root, 'portrait.png'), portrait());
+            let changed: (() => void) | undefined;
+            server = await createServer({
+                configFile: false,
+                root,
+                base: '/book/',
+                logLevel: 'silent',
+                plugins: [
+                    kingraph(policyOptions),
+                    {
+                        name: 'observe-native-update',
+                        handleHotUpdate({ file }) {
+                            if (
+                                file ===
+                                join(root, v2 ? 'portrait.png' : 'family.yaml')
+                            )
+                                changed?.();
+                        },
+                    },
+                ],
+                server: { host: '127.0.0.1', port: 0 },
+            });
+            await server.listen();
+            const url = server.resolvedUrls?.local[0];
+            if (!url) throw new Error('Expected a listening Vite server.');
+            const response = await fetch(`${url}family.yaml?kingraph&import`);
+            expect(response.ok).toBe(true);
+            expect(await response.text()).toContain(
+                'data:image/svg+xml;base64,',
+            );
+            const before = await server.ssrLoadModule('/family.yaml?kingraph');
+            const raw = await server.ssrLoadModule('/family.yaml?kingraph&raw');
+            if (v2) {
+                expect(raw.default).toContain('/book/portrait.png');
+                expect(raw.default).not.toContain('data:image');
+                const image = await fetch(`${url}portrait.png`);
+                expect(Buffer.from(await image.arrayBuffer())).toEqual(
+                    portrait(),
+                );
+            } else expectPolicySvg(raw.default);
+            const transformed = await server.transformRequest(
+                '/family.yaml?kingraph&raw',
+            );
+            if (v2) expect(transformed?.code).toContain('portrait.png?');
+            else
+                expectPolicySvg(
+                    (await importCode(transformed?.code ?? '')).default,
+                );
+            const beforeSvg = Buffer.from(
+                before.default.split(',')[1],
+                'base64',
+            ).toString();
+            if (v2) expect(beforeSvg).toContain('data:image/png;base64,');
+            else expect(beforeSvg).toBe(raw.default);
+            const updated = new Promise<void>((resolve, reject) => {
+                const timeout = setTimeout(
+                    () =>
+                        reject(
+                            new Error('Vite did not observe the YAML change.'),
+                        ),
+                    10_000,
+                );
+                changed = () => {
+                    clearTimeout(timeout);
+                    resolve();
+                };
+            });
+            if (v2)
+                await writeFile(join(root, 'portrait.png'), portrait(12, 48));
+            else
+                await writeFile(
+                    join(root, 'family.yaml'),
+                    policyFamily.replaceAll('Lisa', 'Maggie'),
+                );
+            await updated;
+            const after = await server.ssrLoadModule('/family.yaml?kingraph');
+            const afterRaw = await server.ssrLoadModule(
+                '/family.yaml?kingraph&raw',
+            );
+            expect(after.default).not.toBe(before.default);
+            if (v2) {
+                // Compare native image layout, not just the cache-busting asset URL.
+                const imageGeometry = (svg: string) =>
+                    svg
+                        .match(/<image[^>]*>/)?.[0]
+                        .replace(/(?:xlink:)?href="[^"]*"/, '');
+                expect(imageGeometry(afterRaw.default)).not.toBe(
+                    imageGeometry(raw.default),
+                );
+                expect(afterRaw.default).not.toContain('data:image');
+                const image = await fetch(`${url}portrait.png`);
+                expect(Buffer.from(await image.arrayBuffer())).toEqual(
+                    portrait(12, 48),
+                );
+            } else {
+                expect(afterRaw.default).toContain('Maggie');
+                expect(afterRaw.default).not.toContain('>Lisa<');
+                expectPolicySvg(afterRaw.default);
+            }
+        },
+        20_000,
+    );
 });

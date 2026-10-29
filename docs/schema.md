@@ -1,5 +1,9 @@
 # Schema
 
+This page specifies **v1**. The root APIs also accept explicit `schemaVersion: 2`;
+see [v2 picture catalogs](pictures.md). Unversioned data still selects v1, and
+the `/v1/schemas` validators remain v1-only.
+
 V1 is a single family-tree mapping with optional [families](#family),
 [people](#person), and [styles](#styles). `{}` is valid. All fields below are
 optional. Validation does not insert defaults or coerce values; defaults below
@@ -83,8 +87,9 @@ validateFamilyTree(tree);
 
 The schema-only entry works in both Node and browsers, without importing the
 renderer, Graphviz or PNG conversion. Rendering APIs and their public types live
-at `@nicodoggie/kingraph/v1`; the package root re-exports that v1 API. Both have
-browser export conditions, and the existing `/browser` entry remains available.
+at `@nicodoggie/kingraph/v1` for explicitly v1 documents. The package root dispatches
+by schema version; `/v1` rejects v2 input. Both have browser export conditions,
+and the existing `/browser` entry remains available.
 Permissive validation retains unknown keys but rejects malformed known fields
 such as `parents: "Alex"` or `links: [42]`. It does not resolve IDs against
 `people` or infer relationship meanings.
@@ -102,7 +107,7 @@ No relationship field is required.
 | <a id="children"></a>`children`   | Array of string person IDs                 | Defaults to `[]`. Connects the shared children junction to these people with `:child-link`.                                                            |
 | <a id="children2"></a>`children2` | Array of string person IDs                 | Defaults to `[]`. Uses the same children junction with `:child-link` and `:child2-link` (dashed by default).                                           |
 | <a id="house"></a>`house`         | String                                     | No visible group decoration by default. A nonempty value adds a bold group label and applies `:house`, making the cluster visible with default styles. |
-| `links`                           | Array of strings                           | No link by default. Only the first entry supplies the house label's `labelhref`, and only when `house` is nonempty.                                    |
+| `links`                           | Array of strings                           | No link by default. Only the first entry supplies the house cluster's `href` (label and frame), and only when `house` is nonempty.                     |
 | <a id="families"></a>`families`   | Array of family mappings or `null` entries | Defaults to `[]`. Nests family clusters inside this family. Nested entries are traversed in reverse array order.                                       |
 
 Person IDs are references, not inline objects. They need not appear in `people`:
@@ -193,8 +198,9 @@ people:
         class: [highlight]
 ```
 
-This example includes a local picture path, so it needs native Graphviz and an
-existing image file. It is not previewed here; see [Picture limitation](#picture-limitation).
+This example includes a picture reference. Supply a configured resolver for that
+reference, or use native Graphviz with an existing local file. It is not previewed
+here; see [Picture limitation](#picture-limitation).
 
 ### Dated values
 
@@ -282,11 +288,35 @@ and produces an SVG snapshot at transformation time, not a live age display.
 
 ### Picture limitation
 
-WASM Graphviz does not automatically load local `picture` files. Emit DOT and
-run native Graphviz `dot` with access to the referenced paths. Encoding the
-resulting SVG as PNG does not fix image loading at the graph-layout stage. A
-picture string is a reference in DOT, not an instruction for kingraph to read
-or embed the file.
+The document's `picture` string is a reference, not an instruction to read a file
+or fetch a URL. Without a resolver, WASM Graphviz does not automatically load
+local pictures; emit DOT and run native Graphviz `dot` with access to those files.
+
+For portable SVG/PNG, configure `pictureResolver` on the rendering options, not
+in YAML. A `PictureResolver` receives the original reference and returns a
+`ResolvedPicture`, either directly or asynchronously:
+
+```ts
+interface ResolvedPicture {
+    dataUrl: string; // A base64 PNG/JPEG image data URL.
+    width: number; // Positive finite intrinsic pixel dimensions.
+    height: number;
+}
+```
+
+The resolver owns resource access and decoding. The browser entry provides an
+explicit `loadPicture` helper for URLs under normal fetch/CORS rules. Node callers
+can read known files or use their framework's asset metadata. Rendering resolves
+each distinct nonempty person picture once, supplies image sizes to Graphviz and
+embeds the image data in SVG before PNG conversion. It does not mutate document
+metadata or change the picture references seen by date/age adapters. Invalid
+metadata or a resolver failure rejects rendering rather than omitting the image.
+No resolver is invoked for DOT output; original references remain intact for
+native Graphviz workflows. Custom Graphviz style/HTML-label image attributes are
+not an automatic asset-discovery surface.
+
+See [Pictures and portable downloads](../README.md#pictures-and-portable-downloads)
+for usage, including conversion of an already rendered SVG to PNG.
 
 ## Styles
 

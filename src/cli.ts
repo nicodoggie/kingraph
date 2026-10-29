@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import meow from 'meow';
 import {
@@ -22,6 +22,7 @@ const cli = meow(
       -v, --version       Print version information
       -F, --format        Output format: dot, svg, png (default: svg)
           --config <path> Load a trusted local JavaScript options module
+          --base-dir <dir> Anchor relative pictures (overrides config/input base)
           --age           Enable conventional ages unless a policy is configured
           --as-of <value> Override the reference date (no implicit current date)
 
@@ -40,6 +41,7 @@ const cli = meow(
             help: { type: 'boolean', shortFlag: 'h' },
             version: { type: 'boolean', shortFlag: 'v' },
             config: { type: 'string' },
+            baseDir: { type: 'string' },
             age: { type: 'boolean' },
             asOf: { type: 'string' },
         },
@@ -97,7 +99,16 @@ try {
             source,
             filename === '-' ? 'stdin' : filename,
         );
-        const output = await render(tree, { ...options, format });
+        // Explicit CLI base wins, then trusted config, then this input's URL.
+        // Stdin has no implicit cwd anchor.
+        const documentUrl =
+            cli.flags.baseDir !== undefined
+                ? pathToFileURL(resolve(cli.flags.baseDir) + sep).href
+                : (options.documentUrl ??
+                  (filename === '-'
+                      ? undefined
+                      : pathToFileURL(resolve(filename)).href));
+        const output = await render(tree, { ...options, documentUrl, format });
         await new Promise<void>((resolve, reject) => {
             process.stdout.write(output, (error) =>
                 error ? reject(error) : resolve(),

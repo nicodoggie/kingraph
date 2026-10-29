@@ -1,0 +1,13 @@
+schemaVersion: 1
+# Secondary lists select dashed styles, not adoption or step relationships.
+families:
+    - parents: [alex, sam]
+      parents2: [lee]
+      children: [kit]
+      children2: [robin]
+people:
+    alex: { name: Alex }
+    sam: { name: Sam }
+    lee: { name: Lee }
+    kit: { name: Kit }
+    robin: { name: Robin }

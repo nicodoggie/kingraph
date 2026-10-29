@@ -1,0 +1,51 @@
+---
+import type { HTMLAttributes } from 'astro/types';
+import '@nicodoggie/kingraph/viewer.css';
+
+export interface Props extends Omit<
+    HTMLAttributes<'div'>,
+    'children' | 'role' | 'aria-label'
+> {
+    /** Trusted, already-rendered SVG, for example a ?kingraph&raw import. */
+    svg: string;
+    label: string;
+    height?: string;
+    presentation?: 'standard' | 'embedded';
+    modal?: boolean;
+    fullscreen?: boolean;
+}
+
+const {
+    svg,
+    label,
+    height = '300px',
+    presentation = 'standard',
+    modal = false,
+    fullscreen = false,
+    style,
+    ...attributes
+} = Astro.props;
+const viewerStyle =
+    typeof style === 'string'
+        ? `--kingraph-viewer-height: ${height}; ${style}`
+        : { '--kingraph-viewer-height': height, ...style };
+---
+
+<kingraph-viewer
+    {...attributes}
+    presentation={presentation}
+    role="region"
+    aria-label={label}
+    style={viewerStyle}
+    modal={modal ? true : undefined}
+    fullscreen={fullscreen ? true : undefined}
+>
+    <slot name="controls" />
+    <Fragment set:html={svg} />
+</kingraph-viewer>
+
+<script>
+    import { defineKingraphViewer } from '@nicodoggie/kingraph/viewer';
+
+    void defineKingraphViewer();
+</script>

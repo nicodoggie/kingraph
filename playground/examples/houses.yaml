@@ -1,0 +1,15 @@
+schemaVersion: 1
+families:
+    - house: Harbor house
+      parents: [alex, sam]
+      children: [kit]
+      families:
+          - house: Garden branch
+            parents: [kit, lee]
+            children: [robin]
+people:
+    alex: { name: Alex }
+    sam: { name: Sam }
+    kit: { name: Kit }
+    lee: { name: Lee }
+    robin: { name: Robin }

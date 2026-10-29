@@ -9,8 +9,8 @@ import { render as browserRender } from '../src/browser.js';
 import type { FamilyTree } from '../src/types.js';
 
 describe('permissive v1 contract', () => {
-    it('keeps the root as the v1 API and schemas out of rendering barrels', () => {
-        expect(rootApi.default).toBe(v1Api.default);
+    it('keeps explicit v1 separate from root version dispatch and schemas out of rendering barrels', () => {
+        expect(rootApi.default).not.toBe(v1Api.default);
         expect(Object.keys(rootApi).sort()).toEqual(Object.keys(v1Api).sort());
         expect(rootApi).not.toHaveProperty('FamilyTreeSchema');
         expect(browserApi).not.toHaveProperty('FamilyTreeSchema');
@@ -99,7 +99,7 @@ describe('permissive v1 contract', () => {
             ),
         ).toThrow(/invalid\.yaml.*people\.A\.class/s);
         expect(() =>
-            parseFamilyYaml('schemaVersion: 2\n', 'future.yaml'),
+            parseFamilyYaml('schemaVersion: 3\n', 'future.yaml'),
         ).toThrow(/future\.yaml.*schemaVersion/s);
     });
 

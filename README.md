@@ -129,7 +129,7 @@ Custom `DateAdapter` objects implement `formatYear(value, context)` and
 `formatDate(value, context)`. A custom `AgeAdapter` is a function receiving
 `{ id, person, tree, asOf }` and can inspect preserved life-history metadata.
 It returns complete age wording, so ranges or biological/chronological age
-descriptions are possible. All callbacks are synchronous and return plain text
+descriptions are possible. Date and age callbacks are synchronous and return plain text
 or `undefined` (empty text also omits the fragment). Unexpected callback errors
 fail rendering with person/operation context rather than silently changing policy.
 
@@ -176,15 +176,18 @@ pass a quoted calendar-specific reference, for example
 ### V1 input validation
 
 Unversioned family documents use schema v1. An explicit `schemaVersion: 1` is
-also accepted; other version values are rejected. Both parsed YAML and direct
+also accepted. `schemaVersion: 2` selects the picture-catalog format described in
+the [v2 picture guide](docs/pictures.md); unsupported versions are rejected.
+Both parsed YAML and direct
 render calls validate known fields with Zod, while preserving extra author
 metadata on trees, families and people. Validation does not coerce values or
 add relationship semantics to custom fields.
 
-The package root re-exports the v1 rendering API. Use
-`@nicodoggie/kingraph/v1` for the explicit versioned entry; both select the
-browser implementation in browser-aware bundlers. The existing `/browser`
-entry remains available.
+The package root dispatches by document version. Use
+`@nicodoggie/kingraph/v1` or `@nicodoggie/kingraph/v2` for an explicit versioned
+entry; browser-aware bundlers select the corresponding browser implementation.
+The existing `/browser` entry remains available. Explicit v1 APIs continue to
+reject v2 documents rather than silently changing their meaning.
 
 Import `FamilyTreeSchema`, `FamilySchema`, `PersonSchema`,
 `StylePropertiesSchema`, `StylesSchema` and `validateFamilyTree` from
@@ -216,17 +219,104 @@ scale defaults to `devicePixelRatio`; pass a positive finite value to override.
 Functional browser tests exercise Chromium SVG rendering and native PNG
 conversion. They are not cross-browser or pixel-perfect visual qualification.
 
+### Pictures and portable downloads
+
+V2 declares a `pictures` catalog in YAML and lets each person's `picture` name
+an entry. Its `path`, `url` or `data` source is resolved by an environment adapter.
+Relative paths are anchored to the source YAML, not the page or cwd. Inline
+browser/Astro output can link pictures; portable exports embed them. See the
+[v2 picture guide](docs/pictures.md) for the schema, CLI `--base-dir`, browser
+source context, Vite asset integration and output-mode defaults.
+
+The following callback API remains available for v1 compatibility.
+Keep `picture` as a reference in your family YAML. Supply a `pictureResolver`
+in rendering configuration to turn that reference into a self-contained image.
+The browser entry includes an explicit PNG/JPEG loading helper:
+
+```ts
+import render, { loadPicture, svgToPng } from '@nicodoggie/kingraph/browser';
+
+const familyWithPictures = {
+    people: {
+        Avery: { name: 'Avery', picture: '/portraits/avery.png' },
+    },
+};
+const svg = await render(familyWithPictures, { pictureResolver: loadPicture });
+const png = await svgToPng(svg, 2); // Rasterize this exact SVG snapshot.
+```
+
+`loadPicture` fetches and decodes the supplied URL using browser APIs; normal
+same-origin/CORS rules apply. It does not run merely because an image reference
+appears in YAML. You choose the resolver and its resource-access policy.
+
+Node and browser renderers share the `PictureResolver` contract: a synchronous
+or asynchronous function receiving the original picture string and returning
+`{ dataUrl, width, height }`. `dataUrl` is a base64 PNG/JPEG data URL, and the
+dimensions are positive finite intrinsic pixel sizes. Both types,
+`PictureResolver` and `ResolvedPicture`, are exported from the root, `/v1` and
+`/browser`. A Node resolver can read an explicitly selected file or use metadata
+from an existing asset pipeline; Kingraph does not guess paths or read files on
+your behalf. The same resolver can be supplied through trusted CLI configuration
+or the Vite plugin's options.
+
+Each distinct picture reference is resolved once per SVG/PNG render. The renderer
+registers image dimensions with Graphviz and embeds the bytes in the resulting
+SVG, so the SVG and raster exports do not depend on the original image URL.
+Resolver failures reject rendering rather than silently dropping a portrait.
+`renderDot` and `format: 'dot'` remain synchronous/asynchronous DOT routes,
+respectively: they retain the original references and never invoke the resolver.
+
 ### Rendering limits and trusted input
 
-The WASM Graphviz path does not automatically load local `picture` files.
-For existing picture-bearing trees, emit DOT and use native Graphviz (`dot`)
-with access to those paths, as in the PDF example above. The resvg replacement
-does not remove this existing Graphviz image-layout limitation. Installed fonts
-and Graphviz versions can affect output, so PNG bytes are not a stable snapshot.
+Without an explicit picture resolver, the WASM Graphviz path still does not
+automatically load local `picture` files. Alternatively, emit DOT and use native
+Graphviz (`dot`) with access to those paths, as in the PDF example above.
+Installed fonts and Graphviz versions can affect output, so PNG bytes are not a
+stable snapshot.
 
 Family data and Graphviz style/HTML-label values are trusted authoring input,
 not a sanitization boundary. Do not inject untrusted rendered SVG into a page
 without an appropriate sanitization policy.
+
+## Interactive viewer and Astro
+
+The optional viewer enhances trusted inline SVG with pan/zoom, fit/reset controls
+and opt-in modal/fullscreen presentation. It is framework-neutral and powered by
+`@panzoom/panzoom`; it does not load the rendering engine or require React.
+
+Astro has a native component entry:
+
+```astro
+---
+import KingraphViewer from '@nicodoggie/kingraph/astro';
+import svg from './family.yaml?kingraph&raw';
+---
+
+<KingraphViewer svg={svg} label="The Example family" modal fullscreen />
+```
+
+Use the Vite plugin below to prepare the SVG. The component includes its styles
+and browser setup, requires no `client:*` directive, and leaves the diagram in
+the initial HTML as a static fallback. Its initial Astro peer range is 7.4.x
+and later within Astro 7.
+
+For other browser applications, import `defineKingraphViewer` from
+`@nicodoggie/kingraph/viewer`, import `@nicodoggie/kingraph/viewer.css`, await
+registration and place inline SVG in `<kingraph-viewer>`. Registration is
+explicit; importing the module alone is safe on the server. Astro remains an
+optional peer, and the existing renderer entries do not import the viewer.
+
+Standard keeps a text toolbar outside the frame. Set `presentation="embedded"`
+on either `<kingraph-viewer>` or the Astro component for compact overlay controls
+and an in-frame hint. The optional Astro prop is `'standard' | 'embedded'` and
+defaults to standard. Presentation can change live without replacing the diagram
+or resetting its view. The [viewer guide](docs/viewer.md#custom-controls-and-styles)
+documents scoped theme variables and caller-supplied toolbars.
+
+Ordinary wheel events are not cancelled; Ctrl/Command-wheel zooms. Dragging the
+diagram, including linked nodes, pans; ordinary link clicks remain native. See the
+[viewer guide](docs/viewer.md) for props, view state, lifecycle and navigation
+behavior, customization and qualification limits.
 
 ## Vite plugin
 
@@ -351,12 +441,54 @@ import familyUrl, { width, height } from './family.yaml?kingraph';
 <img src={familyUrl} width={width} height={height} alt="Family tree" />
 ```
 
-The plugin currently targets SVG output. Local `picture` loading has the same
-WASM limitation as the core renderer; use the native Graphviz workflow for those
-trees. This plugin does not install an Astro integration or migrate an existing
+The plugin targets SVG output. V2 local picture paths are resolved relative to
+the YAML file and registered with Vite's asset/watch handling. Raw v2 imports
+default to linked images for inline display; SVG-URL imports default to embedded
+images for image-element compatibility. Explicit `pictureMode` can override SVG
+policy. See the [v2 asset guide](docs/pictures.md#astro-and-vite).
+
+V1 still accepts shared `pictureResolver` configuration for portable pictures.
+Custom callbacks own resources outside plugin-managed dependencies; those are
+not automatically watched. Browser-only `loadPicture` is not a build-time file
+loader. This plugin does not install an Astro integration or migrate an existing
 site's CLI/build scripts automatically.
 
 ## Development
+
+For the local browser workbench:
+
+```sh
+npm install
+npm run dev
+```
+
+Open the local URL printed by Vite. The plain HTML/TypeScript playground uses
+current browser renderer and viewer sources, so source reload needs no `dist`
+rebuild. Its first sample renders automatically; YAML edits, example selection,
+and age/reference changes require **Render**. The fixed visible reference never
+reads today's date. Full dates are needed for exact conventional ages.
+
+The labeled **Viewer presentation** selector switches Standard/Embedded on the
+current preview immediately, preserving its view even with invalid YAML. The
+selection persists through later renders and does not change rendering options.
+
+The example chooser includes links/tooltips, nested houses, secondary connection
+styles, a custom vertical layout, dates/ages and illustrated portraits. Each has
+a short description of what to try. Person and house links in the links example
+lead to explanatory notes on the same page. Dashed connections demonstrate
+alternate edge styling, not automatically inferred adoption or step relationships.
+
+SVG and PNG downloads use the last successful SVG, even after unrendered edits
+or an invalid render. The v2 portrait preview links bundled images; its first
+download lazily creates a portable embedded copy, reused for both formats.
+Conversion does not rerun Graphviz. A failed render retains the last preview;
+failed export preparation can be retried. The editor accepts its curated portrait
+paths or inline image data, not arbitrary resource URLs/files. General browser
+applications can choose their own loader and resource policy. This is trusted
+local authoring: data and SVG are not sanitized.
+
+`npm run build:playground` builds the dev workbench into `playground/dist` using
+native Vite. This is a local development tool, not a hosted service or new package API.
 
 ```sh
 npm ci

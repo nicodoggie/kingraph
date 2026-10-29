@@ -1,6 +1,7 @@
 import { CORE_SCHEMA, loadAll, mergeTag, timestampTag } from 'js-yaml';
 import type { FamilyTree } from './types.js';
-import { validateFamilyTree } from './v1/schemas.js';
+import { validateFamilyTree as validateV1 } from './v1/schemas.js';
+import { validateFamilyTree as validateV2 } from './v2/schemas.js';
 
 // js-yaml 5 defaults to YAML 1.2 core. Retain the old safe parser's
 // timestamp and merge-key support without enabling executable YAML tags.
@@ -11,6 +12,15 @@ export function parseFamilyYaml(
     source: string,
     filename = 'family YAML',
 ): FamilyTree {
+    return parseFamilyYamlWith(source, filename, validateFamilyTree);
+}
+
+/** Version-specific entries share parsing while retaining their own validator. */
+export function parseFamilyYamlWith<T extends FamilyTree>(
+    source: string,
+    filename: string,
+    validate: (input: unknown, filename: string) => T,
+): T {
     let value: unknown;
     try {
         const documents = loadAll(source, { schema, filename });
@@ -23,5 +33,20 @@ export function parseFamilyYaml(
             { cause: error },
         );
     }
-    return validateFamilyTree(value, filename);
+    return validate(value, filename);
+}
+
+/** Explicit dispatch; absent versions remain legacy v1. */
+export function validateFamilyTree(
+    input: unknown,
+    source = 'Family tree',
+): FamilyTree {
+    if (
+        input &&
+        typeof input === 'object' &&
+        'schemaVersion' in input &&
+        input.schemaVersion === 2
+    )
+        return validateV2(input, source);
+    return validateV1(input, source);
 }

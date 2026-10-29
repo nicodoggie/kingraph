@@ -1,0 +1,13 @@
+schemaVersion: 1
+families:
+    - parents: [alex, sam]
+      children: [kit, robin]
+people:
+    alex: { name: Alex, class: [ocean] }
+    sam: { name: Sam, class: [forest] }
+    kit: { name: Kit, class: [ocean] }
+    robin: { name: Robin, class: [forest] }
+styles:
+    ':digraph': { rankdir: TB, ranksep: 0.6 }
+    ocean: { fillcolor: '#164e63', fontcolor: '#ffffff', color: '#67e8f9' }
+    forest: { fillcolor: '#14532d', fontcolor: '#ffffff', color: '#86efac' }

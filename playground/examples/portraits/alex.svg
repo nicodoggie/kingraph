@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+  <title>Original illustrated portrait of Alex</title>
+  <rect width="96" height="96" rx="16" fill="#d5f3f1"/>
+  <path d="M12 96V83Q15 66 39 65H57Q81 66 84 83V96Z" fill="#087f8c"/>
+  <path d="M40 57H56V72Q48 80 40 72Z" fill="#b87950"/>
+  <ellipse cx="48" cy="42" rx="23" ry="27" fill="#b87950"/>
+  <path d="M24 39Q22 13 48 13Q75 13 73 42L63 30Q45 40 32 29Z" fill="#302a35"/>
+  <g fill="#252534"><circle cx="39" cy="44" r="2"/><circle cx="57" cy="44" r="2"/></g>
+  <path d="M41 55Q48 61 55 55" fill="none" stroke="#673d38" stroke-width="2" stroke-linecap="round"/>
+</svg>

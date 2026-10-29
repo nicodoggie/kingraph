@@ -11,8 +11,11 @@ A family tree is a [YAML](http://yaml.org/) file. Start with a `families` collec
 ## Generating
 
 kingraph can give you `svg` (default), `png` or `dot` files. Built-in PNG uses
-resvg and does not require a browser. For local `picture` files or PDF output,
-emit DOT and convert it using native Graphviz, which can read those files.
+resvg and does not require a browser. For PDF output or local `picture` files
+without a configured picture resolver, emit DOT and convert it using native
+Graphviz, which can read those files. A configured resolver can instead embed
+PNG/JPEG pictures directly in portable SVG/PNG output; see
+[pictures and portable downloads](../README.md#pictures-and-portable-downloads).
 
 ```sh
 kingraph family.yaml > family.svg
@@ -81,4 +84,16 @@ It also helps to untangle your YAML file.
 
 ## Next
 
+In a checkout, run `npm run dev` to explore the browser playground. Its feature
+examples demonstrate links and tooltips, nested houses, alternate connection
+styles, layout and colors, dates/ages and illustrated portraits. Select an example,
+read its short description and press **Render**. The portrait sample uses bundled
+assets; arbitrary picture URLs are not fetched from editor input. Both downloads
+use the last successful rendered SVG, including its embedded pictures.
+
 See [advanced usage](advanced.md) for more features.
+
+For declarative local, remote or inline pictures, see the
+[v2 picture catalog guide](pictures.md). V2 explicitly declares image sources;
+CLI file inputs and Vite imports supply the source location for relative paths.
+Use `--base-dir` when reading a path-bearing document from stdin.

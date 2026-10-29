@@ -1,0 +1,18 @@
+schemaVersion: 2
+# Original illustrated avatars bundled by this playground.
+pictures:
+    portrait-alex:
+        path: ./portraits/alex.png
+    portrait-sam:
+        path: ./portraits/sam.png
+families:
+    - parents: [alex, sam]
+people:
+    alex:
+        name: Alex
+        picture: portrait-alex
+        comment: Original illustrated avatar with a teal shirt.
+    sam:
+        name: Sam
+        picture: portrait-sam
+        comment: Original illustrated avatar with a purple shirt.

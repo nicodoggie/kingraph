@@ -1,5 +1,11 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+    mkdirSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -154,6 +160,47 @@ export default { ageAdapter: policy, asOf: 'configured reference', format: 'png'
         expect(
             result.stdout.toString().lastIndexOf('Marjorie'),
         ).toBeGreaterThan(result.stdout.toString().lastIndexOf('digraph G'));
+    });
+    it('anchors each v2 file independently and embeds portable SVG by default', () => {
+        const inputs = ['first', 'second'].map((name) => {
+            const dir = join(scratch, name);
+            mkdirSync(dir);
+            writeFileSync(
+                join(dir, 'portrait.png'),
+                readFileSync(new URL('./7_image2.png', import.meta.url)),
+            );
+            const file = join(dir, 'family.yaml');
+            writeFileSync(
+                file,
+                'schemaVersion: 2\npictures:\n  portrait: { path: portrait.png }\npeople:\n  A: { picture: portrait }\n',
+            );
+            return file;
+        });
+        const result = run(inputs);
+        expect(result.status, result.stderr.toString()).toBe(0);
+        expect(
+            result.stdout.toString().match(/data:image\/png;base64,/g),
+        ).toHaveLength(2);
+    });
+    it('uses explicit stdin base before configured base and keeps DOT free of image I/O', () => {
+        const input =
+            'schemaVersion: 2\npictures:\n  portrait: { path: portrait.png }\npeople:\n  A: { picture: portrait }\n';
+        writeFileSync(
+            join(scratch, 'portrait.png'),
+            readFileSync(new URL('./7_image2.png', import.meta.url)),
+        );
+        const config = join(scratch, 'picture-config.mjs');
+        writeFileSync(
+            config,
+            'export default { documentUrl: "file:///missing/family.yaml" };',
+        );
+        const based = run(['--config', config, '--base-dir', scratch], input);
+        expect(based.status, based.stderr.toString()).toBe(0);
+        expect(based.stdout.toString()).toContain('data:image/png;base64,');
+        expect(run([], input).status).not.toBe(0);
+        const dot = run(['-F', 'dot'], input);
+        expect(dot.status, dot.stderr.toString()).toBe(0);
+        expect(dot.stdout.toString()).toContain('portrait.png');
     });
     it('writes binary PNG output', () => {
         const result = run(['tests/1_simple.yaml', '-F', 'png']);

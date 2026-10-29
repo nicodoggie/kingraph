@@ -1,0 +1,117 @@
+:root {
+    color-scheme: dark;
+    font-family: system-ui, sans-serif;
+    color: #e4e9f1;
+    background: #121721;
+}
+body {
+    margin: 0;
+}
+#app {
+    max-width: 100rem;
+    margin: auto;
+    padding: 1.5rem;
+}
+h1 {
+    margin: 0;
+}
+p {
+    line-height: 1.5;
+}
+.notice {
+    color: #f4d293;
+}
+.workbench {
+    display: grid;
+    grid-template-columns: minmax(18rem, 2fr) minmax(0, 3fr);
+    gap: 1.5rem;
+}
+form,
+section {
+    min-width: 0;
+}
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+form p,
+section > p {
+    font-size: 0.9rem;
+    color: #bdc8d9;
+}
+input,
+select,
+textarea,
+button {
+    font: inherit;
+    border: 1px solid #71829b;
+    border-radius: 0.3rem;
+    padding: 0.6rem;
+}
+textarea {
+    min-height: 26rem;
+    resize: vertical;
+    font-family: ui-monospace, monospace;
+    tab-size: 2;
+}
+button {
+    cursor: pointer;
+    background: #273e63;
+    color: #fff;
+}
+button:disabled {
+    opacity: 0.55;
+    cursor: wait;
+}
+:focus-visible {
+    outline: 3px solid #a8d4ff;
+    outline-offset: 3px;
+}
+.options,
+.presentation-choice,
+.downloads {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.7rem;
+}
+.presentation-choice {
+    margin-bottom: 0.7rem;
+}
+[role='status'] {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+kingraph-viewer {
+    --kingraph-viewer-height: 65vh;
+}
+@media (max-width: 760px) {
+    .workbench {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    #app {
+        padding: 1rem;
+    }
+    textarea {
+        min-height: 18rem;
+    }
+}
+
+.example-notes {
+    margin-top: 1.5rem;
+    padding: 0.2rem 1rem;
+    border: 1px solid #71829b;
+    border-radius: 0.3rem;
+    overflow-wrap: anywhere;
+}
+.example-notes :target {
+    outline: 2px solid #a8d4ff;
+    outline-offset: 0.3rem;
+}
+a {
+    color: #a8d4ff;
+}
+select {
+    max-width: 100%;
+}

@@ -14,22 +14,39 @@ import slugify from './slugify.js';
 import applyStyle from './apply_style.js';
 import idGenerator from './id_generator.js';
 import COLORS from './defaults/colors.js';
-import { validateFamilyTree } from './v1/schemas.js';
+import { validateFamilyTree } from './yaml.js';
 import type { Family, FamilyTree, Person, StyleProperties } from './types.js';
 
 const LINE2 = '# ' + Array(74).join('-');
 type Path = (string | number)[];
 
 /** Render browser-safe DOT, with family colors owned by this render. */
-export default function renderGraph(
-    data: FamilyTree,
-    options: GraphRenderOptions = {},
+export default function renderGraph<T extends FamilyTree>(
+    data: T,
+    options: GraphRenderOptions<T> = {},
 ): string {
+    validateGraphInput(data, options);
+    return buildGraph(data, options);
+}
+
+/** Shared validation boundary before any explicitly supplied picture loader. */
+export function validateGraphInput<T extends FamilyTree>(
+    data: T,
+    options: GraphRenderOptions<T>,
+): FamilyTree {
     validateGraphRenderOptions(options);
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
         throw new TypeError('Family tree must be an object.');
     }
-    data = validateFamilyTree(data);
+    return validateFamilyTree(data);
+}
+
+/** Canonical builder; substitutions affect image sources, never adapter contexts. */
+export function buildGraph<T extends FamilyTree>(
+    data: T,
+    options: GraphRenderOptions<T>,
+    pictureSources?: ReadonlyMap<string, string>,
+): string {
     const getId = idGenerator();
     return join(
         [
@@ -50,7 +67,13 @@ export default function renderGraph(
                         renderFamily(family || {}, [id]),
                     ),
                     Object.entries(data.people || {}).map(([id, person]) =>
-                        renderPerson(data, person || {}, id, options),
+                        renderPerson(
+                            data,
+                            person || {},
+                            id,
+                            options,
+                            pictureSources,
+                        ),
                     ),
                 ],
             },
@@ -88,7 +111,7 @@ export default function renderGraph(
                         applyStyle(data, [':house'], {
                             before: {
                                 label: `<<b>${family.house}</b>>`,
-                                labelhref: family.links?.[0],
+                                href: family.links?.[0],
                             },
                         }),
                     ],
@@ -150,13 +173,14 @@ export default function renderGraph(
     }
 }
 
-function renderPerson(
-    data: FamilyTree,
+function renderPerson<T extends FamilyTree>(
+    data: T,
     person: Person,
     id: string,
-    options: GraphRenderOptions,
+    options: GraphRenderOptions<T>,
+    pictureSources?: ReadonlyMap<string, string>,
 ): Fragment {
-    const context: PersonContext = { id, person, tree: data };
+    const context: PersonContext<T> = { id, person, tree: data };
     const adapter = options.dateAdapter ?? defaultDateAdapter;
     const date = (
         field: DateContext['field'],
@@ -195,8 +219,22 @@ function renderPerson(
         else if (person.gender?.toLowerCase() === 'm') gender = ' ♂';
 
         let picture = '';
-        if (person.picture)
-            picture = `<tr><td><img scale='true' src='${person.picture}' /></td></tr>`;
+        if (person.picture) {
+            const catalog =
+                data.schemaVersion === 2 ? data.pictures : undefined;
+            const source = catalog?.[person.picture];
+            const href =
+                pictureSources?.get(person.picture) ??
+                (source
+                    ? 'url' in source
+                        ? source.url
+                        : 'data' in source
+                          ? source.data
+                          : source.path
+                    : person.picture);
+            // Catalog/loaded sources can contain HTML delimiters; keep legacy DOT intact.
+            picture = `<tr><td><img scale='true' src='${data.schemaVersion === 2 || pictureSources?.has(person.picture) ? htmlText(href) : href}' /></td></tr>`;
+        }
         label =
             '<<table align="center" border="0" cellpadding="0" cellspacing="2" width="4">' +
             picture +

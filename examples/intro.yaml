@@ -34,4 +34,5 @@ styles:
   died:
     style: "filled"
     fillcolor: "#f4f4f4"
+    fontcolor: "#23272a"
     penwidth: 0

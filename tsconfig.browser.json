@@ -4,6 +4,6 @@
         "noEmit": true,
         "types": []
     },
-    "include": ["src/browser.ts"],
+    "include": ["src/browser.ts", "src/viewer.ts"],
     "exclude": []
 }

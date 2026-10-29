@@ -123,8 +123,10 @@ styles:
   minor:
     style: "filled"
     fillcolor: "#f4f4f4"
+    fontcolor: "#23272a"
     penwidth: 0
   unaffiliated:
     style: "filled"
     fillcolor: "#f4f4e0"
+    fontcolor: "#23272a"
     penwidth: 0

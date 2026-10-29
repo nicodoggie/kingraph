@@ -1,25 +1,41 @@
 import type { FamilyTree, Person } from './types.js';
+import type {
+    PictureResolver,
+    PictureLoader,
+    PictureMode,
+} from './pictures.js';
 
 export type DateValue = NonNullable<Person['born']>;
-export interface PersonContext {
+export interface PersonContext<T extends FamilyTree = FamilyTree> {
     readonly id: string;
     readonly person: Readonly<Person>;
-    readonly tree: Readonly<FamilyTree>;
+    readonly tree: Readonly<T>;
 }
-export interface DateContext extends PersonContext {
+export interface DateContext<
+    T extends FamilyTree = FamilyTree,
+> extends PersonContext<T> {
     readonly field: 'born' | 'died' | 'created_at';
 }
-export interface DateAdapter {
-    formatYear(value: DateValue, context: DateContext): string | undefined;
-    formatDate(value: DateValue, context: DateContext): string | undefined;
+export interface DateAdapter<T extends FamilyTree = FamilyTree> {
+    formatYear(value: DateValue, context: DateContext<T>): string | undefined;
+    formatDate(value: DateValue, context: DateContext<T>): string | undefined;
 }
-export interface AgeContext extends PersonContext {
+export interface AgeContext<
+    T extends FamilyTree = FamilyTree,
+> extends PersonContext<T> {
     readonly asOf?: DateValue;
 }
-export type AgeAdapter = (context: AgeContext) => string | undefined;
-export interface GraphRenderOptions {
-    dateAdapter?: DateAdapter;
-    ageAdapter?: AgeAdapter;
+export type AgeAdapter<T extends FamilyTree = FamilyTree> = (
+    context: AgeContext<T>,
+) => string | undefined;
+export interface GraphRenderOptions<T extends FamilyTree = FamilyTree> {
+    pictureResolver?: PictureResolver;
+    pictureLoader?: PictureLoader;
+    pictureMode?: PictureMode;
+    /** Absolute URL of the source document or explicit base directory. */
+    documentUrl?: string;
+    dateAdapter?: DateAdapter<T>;
+    ageAdapter?: AgeAdapter<T>;
     asOf?: DateValue;
 }
 
@@ -35,9 +51,36 @@ function validateDateValue(value: unknown): asserts value is DateValue {
     }
 }
 
-export function validateGraphRenderOptions(options: GraphRenderOptions): void {
+export function validateGraphRenderOptions<T extends FamilyTree>(
+    options: GraphRenderOptions<T>,
+): void {
     if (!options || typeof options !== 'object' || Array.isArray(options)) {
         throw new TypeError('Render options must be an object.');
+    }
+    if (
+        options.pictureLoader !== undefined &&
+        typeof options.pictureLoader !== 'function'
+    )
+        throw new TypeError('pictureLoader must be a function.');
+    if (
+        options.pictureMode !== undefined &&
+        options.pictureMode !== 'embed' &&
+        options.pictureMode !== 'link'
+    )
+        throw new TypeError('pictureMode must be embed or link.');
+    if (options.documentUrl !== undefined) {
+        try {
+            if (typeof options.documentUrl !== 'string') throw new Error();
+            new URL(options.documentUrl);
+        } catch {
+            throw new TypeError('documentUrl must be an absolute URL.');
+        }
+    }
+    if (
+        options.pictureResolver !== undefined &&
+        typeof options.pictureResolver !== 'function'
+    ) {
+        throw new TypeError('pictureResolver must be a function.');
     }
     if (options.dateAdapter !== undefined) {
         const adapter = options.dateAdapter;

@@ -1,5 +1,5 @@
 {
-    "extends": "./tsconfig.json",
+    "extends": "./tsconfig.playground.json",
     "compilerOptions": {
         "noEmit": true,
         "rootDir": "."

@@ -1,0 +1,159 @@
+kingraph-viewer {
+    display: block;
+}
+kingraph-viewer > svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+kingraph-viewer [data-kingraph-surface] {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+kingraph-viewer [data-kingraph-viewport] {
+    position: relative;
+    width: 100%;
+    height: var(--kingraph-viewer-height, 300px);
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+}
+kingraph-viewer [data-kingraph-controls] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-block: 0.375rem;
+}
+kingraph-viewer button {
+    font: inherit;
+    cursor: pointer;
+}
+kingraph-viewer button:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+kingraph-viewer [data-kingraph-hint] {
+    margin-block: 0.375rem;
+}
+kingraph-viewer [data-kingraph-dialog] {
+    width: 92vw;
+    max-width: none;
+    max-height: 96dvh;
+    padding: 1rem;
+}
+kingraph-viewer [data-kingraph-dialog]::backdrop {
+    background: rgb(0 0 0 / 50%);
+}
+kingraph-viewer [data-kingraph-dialog] [data-kingraph-viewport] {
+    height: 70dvh;
+}
+kingraph-viewer:fullscreen {
+    box-sizing: border-box;
+    padding: 1rem;
+    background: Canvas;
+    color: CanvasText;
+    overflow: auto;
+}
+kingraph-viewer:fullscreen [data-kingraph-viewport] {
+    height: 80dvh;
+}
+
+/* Default icons are HTML text, so the diagram remains the only generated SVG. */
+kingraph-viewer [data-kingraph-icon] {
+    display: none;
+}
+kingraph-viewer [data-kingraph-navigation],
+kingraph-viewer [data-kingraph-expansion] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+}
+kingraph-viewer[presentation='embedded'] [data-kingraph-surface] {
+    container-type: inline-size;
+}
+kingraph-viewer[presentation='embedded'] [data-kingraph-viewport] {
+    background: var(--kingraph-viewer-background, #23272a);
+    border-radius: 8px;
+    outline: 1px solid var(--kingraph-viewer-frame-border, #526071);
+    outline-offset: -1px;
+}
+kingraph-viewer[presentation='embedded'] [data-kingraph-controls] {
+    position: absolute;
+    z-index: 1;
+    inset: 8px 8px auto;
+    margin: 0;
+    pointer-events: none;
+}
+kingraph-viewer[presentation='embedded'] [data-kingraph-controls] > * {
+    pointer-events: auto;
+}
+kingraph-viewer[presentation='embedded'] [data-kingraph-default-controls] {
+    display: block;
+}
+kingraph-viewer[presentation='embedded'] [data-kingraph-navigation],
+kingraph-viewer[presentation='embedded'] [data-kingraph-expansion] {
+    position: absolute;
+    top: 0;
+    gap: 4px;
+    pointer-events: none;
+}
+kingraph-viewer[presentation='embedded'] [data-kingraph-navigation] {
+    left: 0;
+}
+kingraph-viewer[presentation='embedded'] [data-kingraph-expansion] {
+    right: 0;
+}
+kingraph-viewer[presentation='embedded']
+    [data-kingraph-default-controls]
+    button,
+kingraph-viewer[presentation='embedded'] button[data-kingraph-modal-close] {
+    box-sizing: border-box;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid var(--kingraph-viewer-control-border, #718096);
+    border-radius: 6px;
+    background: var(--kingraph-viewer-control-background, #fff);
+    color: var(--kingraph-viewer-control-color, #202938);
+    pointer-events: auto;
+}
+kingraph-viewer[presentation='embedded'] [data-kingraph-icon] {
+    display: inline;
+    font:
+        24px/1 system-ui,
+        sans-serif;
+}
+kingraph-viewer[presentation='embedded'] [data-kingraph-label] {
+    display: none;
+}
+kingraph-viewer[presentation='embedded'] button:focus-visible {
+    outline-color: var(--kingraph-viewer-focus-color, #2563eb);
+}
+kingraph-viewer[presentation='embedded'] [data-kingraph-hint] {
+    position: absolute;
+    inset: auto auto 8px 8px;
+    box-sizing: border-box;
+    width: max-content;
+    max-width: calc(100% - 72px);
+    margin: 0;
+    color: var(--kingraph-viewer-hint-color, #cbd5e1);
+    background: var(--kingraph-viewer-hint-background, rgb(18 23 33 / 75%));
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    pointer-events: none;
+}
+kingraph-viewer[presentation='embedded'] button[data-kingraph-modal-close] {
+    position: absolute;
+    z-index: 1;
+    right: 8px;
+    bottom: 8px;
+}
+@container (max-width: 380px) {
+    kingraph-viewer[presentation='embedded'] [data-kingraph-expansion] {
+        top: 52px;
+    }
+}
